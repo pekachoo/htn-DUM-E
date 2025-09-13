@@ -23,14 +23,67 @@ void deserializeAndSetServos(String data) {
   setServoPositions(yaw, p1, p2, p3, roll_pos, claw);
 }
 
+struct ServoAngles {
+  int yaw;
+  int p1;
+  int p2;
+  int p3;
+  int roll;
+  int claw;
+};
+
+ServoAngles IK_to_servo_angles(float yaw, float p1, float p2, float p3, float roll, float claw) {
+  // yaw
+  yaw = -0.6889f * yaw + 124.0f;
+
+  // p1 restraints
+  if (p1 > -90 && p1 < -35) {
+    p1 = -35;
+  }
+  if (p1 < -90 && p1 > -149) {
+    p1 = -149;
+  }
+  if (p1 < -90 && p1 >= -180) {
+    p1 += 360;
+  }
+  p1 = -0.0939f * p1 + 28.0f;
+
+  // p2
+  p2 = 0.6444f * p2 + 88.0f;
+
+  // p3
+  p3 = 90.0f - p3;
+
+  // roll stays unchanged
+  // claw scaled
+  claw = claw * 125.0f;
+
+  ServoAngles result;
+  result.yaw  = (int)yaw;
+  result.p1   = (int)p1;
+  result.p2   = (int)p2;
+  result.p3   = (int)p3;
+  result.roll = (int)roll;
+  result.claw = (int)claw;
+
+  return result;
+}
+
+
 // Helper function to command all servos at once
 void setServoPositions(int yaw, int p1, int p2, int p3, int roll_pos, int claw) {
   servoYaw.write(yaw);
+  delay(5000);
   servoPitch1.write(p1);
+  delay(5000);
   servoPitch2.write(p2);
+  delay(5000);
   servoPitch3.write(p3);
+  delay(5000);
   roll.write(roll_pos);
+  delay(5000);
   servoClaw.write(claw);
+  delay(5000);
 }
 
 void setup() {
@@ -41,22 +94,13 @@ void setup() {
   servoPitch3.attach(PITCH3_PIN);
   roll.attach(ROLL_PIN);
   servoClaw.attach(CLAW_PIN);
-
-  // Optional: set initial positions (degrees 0–180) --> set to the zerod values most likely
-  servoYaw.write(90);
-  servoPitch1.write(90);
-  servoPitch2.write(90);
-  servoPitch3.write(90);
-  roll.write(0);
-  servoClaw.write(0);  // start with claw open
 }
 
 void loop() {
   // Example sequence: move each servo to a new position
-  setServoPositions(120, 80, 100, 60, 30, 45);  // yaw, p1, p2, p3, claw
-  delay(2000);
-
-  setServoPositions(60, 100, 80, 120, 30, 0);
+  // Test 1: does each servo go to its position?
+  result = IK_to_servo_angles(0,0,0,0,0,0);  // yaw, p1, p2, p3, roll, claw
+  setServoPositions(result.yaw, result.p1, result.p2, result.p3, result.roll, result.claw);
   delay(2000);
 }
 

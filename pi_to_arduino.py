@@ -65,6 +65,7 @@ def IK_to_servo_angles(angles):
     roll = roll
     # claw
     claw = claw * 125
+    return int(yaw), int(p1), int(p2), int(p3), int(roll), int(claw)
     
 def sendTargets(angles, uno, master):
     yaw, p1, p3, p4 = angles
