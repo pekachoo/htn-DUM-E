@@ -67,17 +67,12 @@ def IK_to_servo_angles(angles):
     claw = claw * 125
     return int(yaw), int(p1), int(p2), int(p3), int(roll), int(claw)
     
-def sendTargets(angles, uno, master):
-    yaw, p1, p3, p4 = angles
+def sendTargets(angles, uno):
+    yaw, p1, p2, p3, roll, claw = angles
 
-    uno_string = f"yaw:{yaw:.2f};p1:{p1:.2f}\n"
-    master_string = f"p3:{p3:.2f};p4:{p4:.2f}\n"
+    uno_string = f"yaw:{yaw:.2f};p1:{p1:.2f};p2:{p2:.2f};p3:{p3:.2f};roll:{roll:.2f};cw:{claw:.2f}\n"
 
     uno.write(uno_string.encode())
-    master.write(master_string.encode())
-
-    if uno.in_waiting:
-        print("Arduino:", uno.readline().decode().strip())
 
 def get_yaw_angle(x, y):
     angle = math.atan2(y, x)
@@ -89,7 +84,7 @@ def projection(x, y, z):
 
 
 if __name__ == "__main__":
-
+    ser = serial.Serial("/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0",  9600, timeout=1)
     ikSolver = IKSolver(P1=12.0, P2=12.3, P3=8.0)
 
     try:
@@ -108,6 +103,7 @@ if __name__ == "__main__":
             print(angles)
             physical_angles = IK_to_servo_angles(angles)
             print(physical_angles)
+            sendTargets(angles, ser)
 
             time.sleep(0.5)  # Control update rate
 
