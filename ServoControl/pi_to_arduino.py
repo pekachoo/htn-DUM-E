@@ -44,6 +44,21 @@ class IKSolver:
 
         return wrap(theta1), wrap(theta2), wrap(theta3)
     
+def IK_to_servo_angles(angles):
+    yaw, p1, p2, p3, roll, claw = angles
+    # yaw
+    yaw = -0.6889 * yaw + 124
+    # p1
+    if p1 < -90 and p1 >= -180:
+        p1 += 360
+    p1 = -0.0939 * p1 + 28
+    # p2
+    p2 = 0.6444 * p2 + 88
+    # p3
+    # roll
+    # claw
+
+    
 def sendTargets(angles, uno, master):
     yaw, p1, p3, p4 = angles
 
@@ -74,12 +89,13 @@ if __name__ == "__main__":
             # SETTING TARGETS
             x, y, z = 22.83, -22.83, 0  # cm
             phi = 0 * math.pi / 180
-            roll_angle, gripper_angle = 0, 0 
+            roll_angle, claw_angle = 0, 0 
 
             # Calculate angles
             x_target, y_target = projection(x, y, z)
             pitch_angles = ikSolver.solve(x_target, y_target, phi, elbow='up')
-            angles = (get_yaw_angle(x, y),) + pitch_angles + (roll_angle, gripper_angle)
+            angles = (get_yaw_angle(x, y),) + pitch_angles + (roll_angle, claw_angle)
+            angles = tuple(int(math.degrees(a)) for a in angles)  # convert to degrees
             # sendTargets(angles, uno, master)
             print(angles)
 
