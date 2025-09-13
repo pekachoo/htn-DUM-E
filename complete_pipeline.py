@@ -22,7 +22,6 @@ class CompletePipeline:
         ], dtype=np.float32)
         
         self.H = cv2.getPerspectiveTransform(self.src_points, self.dst_points)
-        # Temporal history of centers for simple persistence filtering
         self.center_history: deque = deque(maxlen=5)
     
     def _apply_nms(self, rects_scores: List[Tuple[int,int,int,int,float]], iou_thr: float = 0.35) -> List[Tuple[int,int,int,int,float]]:
@@ -70,13 +69,29 @@ class CompletePipeline:
         self.center_history.append(cur_centers)
         return kept
 
+    def _red_mask(self, frame: np.ndarray) -> np.ndarray:
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        # Two red ranges
+        lower1 = np.array([0, 80, 50], dtype=np.uint8)
+        upper1 = np.array([10, 255, 255], dtype=np.uint8)
+        lower2 = np.array([170, 80, 50], dtype=np.uint8)
+        upper2 = np.array([180, 255, 255], dtype=np.uint8)
+        mask1 = cv2.inRange(hsv, lower1, upper1)
+        mask2 = cv2.inRange(hsv, lower2, upper2)
+        red = cv2.bitwise_or(mask1, mask2)
+        red = cv2.morphologyEx(red, cv2.MORPH_CLOSE, np.ones((5,5), np.uint8), iterations=2)
+        red = cv2.morphologyEx(red, cv2.MORPH_OPEN, np.ones((3,3), np.uint8), iterations=1)
+        return red
+
     def _find_filtered_rects(self, frame: np.ndarray):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         gray = cv2.blur(gray, (3,3))
         canny = cv2.Canny(gray, 100, 200)
         canny = cv2.dilate(canny, np.ones((3,3), np.uint8), iterations=1)
-        contours, _ = cv2.findContours(canny, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        H, W = frame.shape[:2]
+        red = self._red_mask(frame)
+        # Combine edges and red color regions
+        combo = cv2.bitwise_or(canny, red)
+        contours, _ = cv2.findContours(combo, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         candidates: List[Tuple[int,int,int,int,float]] = []
         for c in contours:
             area = cv2.contourArea(c)
@@ -93,8 +108,11 @@ class CompletePipeline:
             ar = w / float(h)
             peri = cv2.arcLength(c, True)
             circularity = 4.0 * np.pi * area / (peri*peri + 1e-6)
-            roi = canny[y:y+h, x:x+w]
-            edge_density = float(np.count_nonzero(roi)) / (rect_area + 1e-6)
+            roi_edges = canny[y:y+h, x:x+w]
+            edge_density = float(np.count_nonzero(roi_edges)) / (rect_area + 1e-6)
+            roi_red = red[y:y+h, x:x+w]
+            red_cov = float(np.count_nonzero(roi_red)) / (rect_area + 1e-6)
+            # Filters: allow either good edges or enough red coverage
             if extent < 0.15:
                 continue
             if solidity < 0.30:
@@ -103,17 +121,17 @@ class CompletePipeline:
                 continue
             if circularity < 0.03:
                 continue
-            if edge_density < 0.01:
+            if edge_density < 0.01 and red_cov < 0.05:
                 continue
-            score = min(1.0, (area / 30000.0) + 0.5*edge_density + 0.2*extent)
+            score = min(1.0, (area / 30000.0) + 0.7*red_cov + 0.4*edge_density + 0.2*extent)
             candidates.append((x, y, w, h, float(score)))
         candidates = self._apply_nms(candidates, 0.35)
         rects = [(x,y,w,h) for (x,y,w,h,_) in candidates]
         rects = self._persistence_filter(rects)
-        return rects, canny
+        return rects, canny, red
 
     def draw_automatic_detections(self, frame: np.ndarray, result: np.ndarray):
-        rects, canny = self._find_filtered_rects(frame)
+        rects, _, _ = self._find_filtered_rects(frame)
         for i, (x, y, w, h) in enumerate(rects):
             cv2.rectangle(result, (x, y), (x + w, y + h), (0, 255, 0), 2)
             cx, cy = x + w//2, y + h//2
@@ -143,7 +161,7 @@ class CompletePipeline:
     
     def get_detections(self, frame: np.ndarray) -> List[Tuple[int, int, int]]:
         warped = cv2.warpPerspective(frame, self.H, (400, 400))
-        rects, _ = self._find_filtered_rects(warped)
+        rects, _, _ = self._find_filtered_rects(warped)
         detections = [(x, y, x+w, y+h, 1.0, "Object") for (x,y,w,h) in rects]
         original = self.transform_coordinates_to_original(detections, frame.shape[:2])
         out = []
