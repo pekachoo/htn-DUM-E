@@ -3,10 +3,10 @@ import numpy as np
 
 # Pick 4 points on the plane (replace with your own)
 src_points = np.array([
-    [478, 602],   # top-left
-    [731, 264],   # top-right
-    [1344, 290],   # bottom-right
-    [1471, 640],   # bottom-left
+    [653, 352],   # top-left
+    [1373, 363],   # top-right
+    [1654, 825],    # bottom-right 
+    [334, 824],   # bottom-left
 ], dtype=np.float32)
 
 # Destination rectangle
