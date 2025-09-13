@@ -12,11 +12,11 @@ void loop() {
   //   myServo.write(pos);
   //   delay(15);           // small pause so the servo can reach the position
   // }
-  myServo.write(0);
+  myServo.write(90);
 
   delay(5000);  // wait half a second
 
-  myServo.write(180);
+  myServo.write(0);
 
   // Move back to 0 degrees
   // for (int pos = 180; pos >= 0; pos--) {
