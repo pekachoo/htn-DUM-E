@@ -90,8 +90,8 @@ if __name__ == "__main__":
     try:
         while True:
             # SETTING TARGETS
-            x, y, z = 22.83, -22.83, 0  # cm
-            phi = 0 * math.pi / 180
+            x, y, z = 15, 15, 0  # cm
+            phi = 270 * math.pi / 180
             roll_angle, claw_open = 0, 0 
 
             # Calculate angles
