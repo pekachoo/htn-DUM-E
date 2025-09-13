@@ -130,6 +130,51 @@ def move_to_idle_position(ikSolver):
 
         time.sleep(0.3)  # Control update rate
 
+def shake_no(ikSolver):
+    t=time.time()
+    while(time.time() - t <= 1):
+        move_to_idle_position(ikSolver)
+        time.sleep(0.3)
+        x,y,z = 0, 0, 20
+        phi=90*math.pi/180
+        roll_angle,claw_open = 45,1
+        x_target,y_target = projection(x,y,z)
+        pitch_angles = ikSolver.solve(x_target,y_target,phi,elbow='up')
+        angles = (get_yaw_angle(x,y),) + pitch_angles + (roll_angle,claw_open)
+        angles = tuple(int(math.degrees(a)) for a in angles)  # convert to degrees
+        sendTargets(angles,ser)
+        time.sleep(0.3)
+
+        x,y,z = 0, 0, 20
+        phi=90*math.pi/180
+        roll_angle,claw_open = 135,1
+        x_target,y_target = projection(x,y,z)
+        pitch_angles = ikSolver.solve(x_target,y_target,phi,elbow='up')
+        angles = (get_yaw_angle(x,y),) + pitch_angles + (roll_angle,claw_open)
+        angles = tuple(int(math.degrees(a)) for a in angles)  # convert to degrees
+        sendTargets(angles,ser)
+        time.sleep(0.3)
+
+        x,y,z = 0, 0, 20
+        phi=90*math.pi/180
+        roll_angle,claw_open = 45,1
+        x_target,y_target = projection(x,y,z)
+        pitch_angles = ikSolver.solve(x_target,y_target,phi,elbow='up')
+        angles = (get_yaw_angle(x,y),) + pitch_angles + (roll_angle,claw_open)
+        angles = tuple(int(math.degrees(a)) for a in angles)  # convert to degrees
+        sendTargets(angles,ser)
+        time.sleep(0.3)
+
+        x,y,z = 0, 0, 20
+        phi=90*math.pi/180
+        roll_angle,claw_open = 135,1
+        x_target,y_target = projection(x,y,z)
+        pitch_angles = ikSolver.solve(x_target,y_target,phi,elbow='up')
+        angles = (get_yaw_angle(x,y),) + pitch_angles + (roll_angle,claw_open)
+        angles = tuple(int(math.degrees(a)) for a in angles)  # convert to degrees
+        sendTargets(angles,ser)
+        time.sleep(0.3)
+
 
 if __name__ == "__main__":
     ser = serial.Serial("/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0",  9600, timeout=1)
