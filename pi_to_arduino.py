@@ -47,7 +47,7 @@ class IKSolver:
 def IK_to_servo_angles(angles):
     yaw, p1, p2, p3, roll, claw = angles
     # yaw
-    yaw = -0.6889 * yaw + 124
+    yaw = -0.6556 * yaw + 110.0
     # p1
         ## restrain p1 angle
     if p1 > -90 and p1 < -35:
@@ -81,6 +81,54 @@ def get_yaw_angle(x, y):
 
 def projection(x, y, z):
     return math.sqrt(x**2 + y**2), z
+    
+
+def grab(ikSolver, x, y, phi, ser):
+    t = time.time()
+    while(time.time() - t <= 4):
+        idle_angle = ikSolver.solve(math.sqrt(x**2 + y**2), 10, 300 * math.pi / 180, elbow='up')
+        angles = (get_yaw_angle(x, y),) + idle_angle + (0, 1)  # open claw
+        angles = tuple(int(math.degrees(a)) for a in angles)  # deg
+        sendTargets(angles, ser)
+        time.sleep(0.3)  # wait for arm to reach position
+        
+        #grab
+        down_angle = ikSolver.solve(math.sqrt(x**2 + y**2), -5, 270 * math.pi / 180, elbow='up')
+        angles = (get_yaw_angle(x, y),) + down_angle + (0, 1)  # open claw
+        angles = tuple(int(math.degrees(a)) for a in angles)  # deg
+        sendTargets(angles, ser)
+        time.sleep(0.3)  # wait for arm to reach position
+        angles = (get_yaw_angle(x, y),) + down_angle + (0, 0)  # close claw
+        angles = tuple(int(math.degrees(a)) for a in angles)  # deg
+        sendTargets(angles, ser)
+        time.sleep(0.3)  # wait for arm to reach position
+
+        #lift
+        angles = (get_yaw_angle(x, y),) + idle_angle + (0, 0)  # close claw
+        angles = tuple(int(math.degrees(a)) for a in angles)  # deg
+        sendTargets(angles, ser)
+        time.sleep(0.3)  # wait for arm to reach position
+        break
+
+def move_to_idle_position(ikSolver):
+    t = time.time()
+    while(time.time() - t <= 1.5):
+        # SETTING TARGETS
+        x, y, z = 4, 4, 22  # cm
+        phi = 0 * math.pi / 180
+        roll_angle, claw_open = 0, 1 
+
+        # Calculate angles
+        x_target, y_target = projection(x, y, z)
+        pitch_angles = ikSolver.solve(x_target, y_target, phi, elbow='up')
+        angles = (get_yaw_angle(x, y),) + pitch_angles + (roll_angle, claw_open)
+        angles = tuple(int(math.degrees(a)) for a in angles)  # convert to degrees
+        # sendTargets(angles, uno, master)
+        print(angles)
+        sendTargets(angles, ser)
+        print("a")
+
+        time.sleep(0.3)  # Control update rate
 
 
 if __name__ == "__main__":
@@ -88,24 +136,26 @@ if __name__ == "__main__":
     ikSolver = IKSolver(P1=12.0, P2=12.3, P3=8.0)
 
     try:
-        while True:
-            # SETTING TARGETS
-            x, y, z = 13, 13, 5  # cm
-            phi = 270 * math.pi / 180
-            roll_angle, claw_open = 0, 1 
+        #while True:
+            # # SETTING TARGETS
+            # x, y, z = 4 * math.sqrt(2), 4 * math.sqrt(2), 22  # cm
+            # phi = 0 * math.pi / 180
+            # roll_angle, claw_open = 0, 1 
 
-            # Calculate angles
-            x_target, y_target = projection(x, y, z)
-            pitch_angles = ikSolver.solve(x_target, y_target, phi, elbow='up')
-            angles = (get_yaw_angle(x, y),) + pitch_angles + (roll_angle, claw_open)
-            angles = tuple(int(math.degrees(a)) for a in angles)  # convert to degrees
-            # sendTargets(angles, uno, master)
-            print(angles)
-            physical_angles = IK_to_servo_angles(angles)
-            print(physical_angles)
-            sendTargets(angles, ser)
+            # # Calculate angles
+            # x_target, y_target = projection(x, y, z)
+            # pitch_angles = ikSolver.solve(x_target, y_target, phi, elbow='up')
+            # angles = (get_yaw_angle(x, y),) + pitch_angles + (roll_angle, claw_open)
+            # angles = tuple(int(math.degrees(a)) for a in angles)  # convert to degrees
+            # # sendTargets(angles, uno, master)
+            # print(angles)
+            # physical_angles = IK_to_servo_angles(angles)
+            # print(physical_angles)
+            # sendTargets(angles, ser)
 
-            time.sleep(0.5)  # Control update rate
+            # time.sleep(0.5)  # Control update rate
+            move_to_idle_position(ikSolver)
+            grab(ikSolver, 15, 15, 270, ser)
 
     except KeyboardInterrupt:
         print("Stopped by user.")

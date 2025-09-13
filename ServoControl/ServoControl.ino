@@ -34,7 +34,7 @@ struct ServoAngles {
 
 struct ServoAngles IK_to_servo_angles(float yaw, float p1, float p2, float p3, float roll, float claw) {
   // yaw
-  yaw = -0.6889f * yaw + 124.0f;
+  yaw = -0.6556f * yaw + 110.0f;
 
   // p1 restraints
   if (p1 > -90 && p1 < -35) {
