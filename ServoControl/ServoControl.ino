@@ -32,7 +32,7 @@ struct ServoAngles {
   int claw;
 };
 
-ServoAngles IK_to_servo_angles(float yaw, float p1, float p2, float p3, float roll, float claw) {
+struct ServoAngles IK_to_servo_angles(float yaw, float p1, float p2, float p3, float roll, float claw) {
   // yaw
   yaw = -0.6889f * yaw + 124.0f;
 
@@ -73,15 +73,15 @@ ServoAngles IK_to_servo_angles(float yaw, float p1, float p2, float p3, float ro
 // Helper function to command all servos at once
 void setServoPositions(int yaw, int p1, int p2, int p3, int roll_pos, int claw) {
   servoYaw.write(yaw);
-  delay(5000);
+  // delay(5000);
   servoPitch1.write(p1);
-  delay(5000);
+  // delay(5000);
   servoPitch2.write(p2);
-  delay(5000);
+  // delay(5000);
   servoPitch3.write(p3);
-  delay(5000);
+  // delay(5000);
   roll.write(roll_pos);
-  delay(5000);
+  // delay(5000);
   servoClaw.write(claw);
   delay(5000);
 }
@@ -97,11 +97,61 @@ void setup() {
 }
 
 void loop() {
-  // Example sequence: move each servo to a new position
-  // Test 1: does each servo go to its position?
-  result = IK_to_servo_angles(0,0,0,0,0,0);  // yaw, p1, p2, p3, roll, claw
+
+  if (Serial.available()) {
+    String line = Serial.readStringUntil('\n');
+    if (Serial.available()) {
+    String line = Serial.readStringUntil('\n');
+    line.trim();   // remove CR/LF or spaces
+
+    // Find the indexes of every field
+    int idx_yaw  = line.indexOf("yaw:");
+    int idx_p1   = line.indexOf("p1:");
+    int idx_p2   = line.indexOf("p2:");
+    int idx_p3   = line.indexOf("p3:");
+    int idx_roll = line.indexOf("roll:");
+    int idx_cw   = line.indexOf("cw:");
+
+    if (idx_yaw >= 0) {
+        String s = line.substring(idx_yaw + 4, line.indexOf(';', idx_yaw));
+        targetYaw = s.toFloat();
+      }
+
+    if (idx_p1 >= 0) {
+        String s = line.substring(idx_p1 + 3, line.indexOf(';', idx_p1));
+        targetPitch1 = s.toFloat();
+      }
+
+    if (idx_p2 >= 0) {
+        String s = line.substring(idx_p2 + 3, line.indexOf(';', idx_p2));
+        targetPitch2 = s.toFloat();
+      }
+
+    if (idx_p3 >= 0) {
+        String s = line.substring(idx_p3 + 3, line.indexOf(';', idx_p3));
+        targetPitch3 = s.toFloat();
+      }
+
+    if (idx_roll >= 0) {
+        String s = line.substring(idx_roll + 5, line.indexOf(';', idx_roll));
+        targetRoll = s.toFloat();
+      }
+
+    if (idx_cw >= 0) {
+        String s = line.substring(idx_cw + 3, line.indexOf(';', idx_cw));
+        targetClaw = s.toFloat();
+      }
+    }
+  }
+  struct ServoAngles result = IK_to_servo_angles(targetYaw, targetPitch1, targetPitch2, targetPitch3, targetRoll, targetClaw);  // yaw, p1, p2, p3, roll, claw
   setServoPositions(result.yaw, result.p1, result.p2, result.p3, result.roll, result.claw);
-  delay(2000);
+  // result = IK_to_servo_angles(0, 29, -90, 61, 0, 90);  // yaw, p1, p2, p3, roll, claw
+  // setServoPositions(result.yaw, result.p1, result.p2, result.p3, result.roll, result.claw);
+  // result = IK_to_servo_angles(0, 29, -90, 61, 0, 0);  // yaw, p1, p2, p3, roll, claw
+  // setServoPositions(result.yaw, result.p1, result.p2, result.p3, result.roll, result.claw);
+  // result = IK_to_servo_angles(0, 0, 0, 0, 0, 0);  // yaw, p1, p2, p3, roll, claw
+  // setServoPositions(result.yaw, result.p1, result.p2, result.p3, result.roll, result.claw);
 }
 
 
+// 
