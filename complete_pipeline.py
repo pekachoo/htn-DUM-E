@@ -3,6 +3,7 @@ import numpy as np
 import argparse
 import os
 from typing import List, Tuple, Optional
+from collections import deque
 
 class CompletePipeline:
     def __init__(self, src_points=None, dst_points=None):
@@ -21,77 +22,165 @@ class CompletePipeline:
         ], dtype=np.float32)
         
         self.H = cv2.getPerspectiveTransform(self.src_points, self.dst_points)
-        
-    def detect_objects_contours(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float, str]]:
-        detections = []
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-        edges = cv2.Canny(blurred, 50, 150)
-        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        for contour in contours:
-            area = cv2.contourArea(contour)
-            if area > 1000:
-                x, y, w, h = cv2.boundingRect(contour)
-                if w > 30 and h > 30:
-                    confidence = min(1.0, area / 50000)
-                    detections.append((x, y, x+w, y+h, confidence, "Object"))
-        return detections
+        self.center_history: deque = deque(maxlen=5)
     
+    def _apply_nms(self, rects_scores: List[Tuple[int,int,int,int,float]], iou_thr: float = 0.35) -> List[Tuple[int,int,int,int,float]]:
+        if not rects_scores:
+            return []
+        boxes = np.array([[x, y, x+w, y+h] for (x,y,w,h,_) in rects_scores], dtype=np.float32)
+        scores = np.array([s for (*_, s) in rects_scores], dtype=np.float32)
+        idxs = scores.argsort()[::-1]
+        keep = []
+        while len(idxs) > 0:
+            i = idxs[0]
+            keep.append(i)
+            if len(idxs) == 1:
+                break
+            rest = idxs[1:]
+            x1 = np.maximum(boxes[i,0], boxes[rest,0])
+            y1 = np.maximum(boxes[i,1], boxes[rest,1])
+            x2 = np.minimum(boxes[i,2], boxes[rest,2])
+            y2 = np.minimum(boxes[i,3], boxes[rest,3])
+            inter = np.maximum(0, x2-x1) * np.maximum(0, y2-y1)
+            area_i = (boxes[i,2]-boxes[i,0]) * (boxes[i,3]-boxes[i,1])
+            area_r = (boxes[rest,2]-boxes[rest,0]) * (boxes[rest,3]-boxes[rest,1])
+            iou = inter / (area_i + area_r - inter + 1e-6)
+            idxs = rest[iou <= iou_thr]
+        return [rects_scores[i] for i in keep]
+
+    def _persistence_filter(self, rects: List[Tuple[int,int,int,int]]) -> List[Tuple[int,int,int,int]]:
+        if not self.center_history:
+            centers = [((x + x+w)//2, (y + y+h)//2) for (x,y,w,h) in rects]
+            self.center_history.append(centers)
+            return rects
+        prev_centers_flat = [c for hist in self.center_history for c in hist]
+        kept = []
+        cur_centers = []
+        for (x,y,w,h) in rects:
+            cx, cy = (x + w//2), (y + h//2)
+            cur_centers.append((cx, cy))
+            ok = False
+            for (px, py) in prev_centers_flat:
+                if (cx-px)*(cx-px) + (cy-py)*(cy-py) <= 25*25:
+                    ok = True
+                    break
+            if ok:
+                kept.append((x,y,w,h))
+        self.center_history.append(cur_centers)
+        return kept
+
+    def _red_mask(self, frame: np.ndarray) -> np.ndarray:
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        lower1 = np.array([0, 80, 50], dtype=np.uint8)
+        upper1 = np.array([10, 255, 255], dtype=np.uint8)
+        lower2 = np.array([170, 80, 50], dtype=np.uint8)
+        upper2 = np.array([180, 255, 255], dtype=np.uint8)
+        mask1 = cv2.inRange(hsv, lower1, upper1)
+        mask2 = cv2.inRange(hsv, lower2, upper2)
+        red = cv2.bitwise_or(mask1, mask2)
+        red = cv2.morphologyEx(red, cv2.MORPH_CLOSE, np.ones((5,5), np.uint8), iterations=2)
+        red = cv2.morphologyEx(red, cv2.MORPH_OPEN, np.ones((3,3), np.uint8), iterations=1)
+        return red
+
+    def _find_filtered_rects(self, frame: np.ndarray):
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray = cv2.blur(gray, (3,3))
+        canny = cv2.Canny(gray, 100, 200)
+        canny = cv2.dilate(canny, np.ones((3,3), np.uint8), iterations=1)
+        red = self._red_mask(frame)
+        combo = cv2.bitwise_or(canny, red)
+        contours, _ = cv2.findContours(combo, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        candidates: List[Tuple[int,int,int,int,float]] = []
+        for c in contours:
+            area = cv2.contourArea(c)
+            if area < 1400:
+                continue
+            x, y, w, h = cv2.boundingRect(c)
+            if w < 26 or h < 26:
+                continue
+            rect_area = float(w * h)
+            extent = area / (rect_area + 1e-6)
+            hull = cv2.convexHull(c)
+            hull_area = cv2.contourArea(hull) + 1e-6
+            solidity = area / hull_area
+            ar = w / float(h)
+            peri = cv2.arcLength(c, True)
+            circularity = 4.0 * np.pi * area / (peri*peri + 1e-6)
+            roi_edges = canny[y:y+h, x:x+w]
+            edge_density = float(np.count_nonzero(roi_edges)) / (rect_area + 1e-6)
+            roi_red = red[y:y+h, x:x+w]
+            red_cov = float(np.count_nonzero(roi_red)) / (rect_area + 1e-6)
+            if extent < 0.17:
+                continue
+            if solidity < 0.33:
+                continue
+            if ar < 0.20 or ar > 6.0:
+                continue
+            if circularity < 0.035:
+                continue
+            if edge_density < 0.012 and red_cov < 0.07:
+                continue
+            score = min(1.0, (area / 30000.0) + 0.7*red_cov + 0.4*edge_density + 0.2*extent)
+            candidates.append((x, y, w, h, float(score)))
+        candidates = self._apply_nms(candidates, 0.35)
+        rects = [(x,y,w,h) for (x,y,w,h,_) in candidates]
+        rects = self._persistence_filter(rects)
+        return rects
+
+    def draw_automatic_detections(self, frame: np.ndarray, result: np.ndarray):
+        rects = self._find_filtered_rects(frame)
+        if isinstance(rects, tuple):
+            rects = rects[0]
+        for i, (x, y, w, h) in enumerate(rects):
+            cv2.rectangle(result, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            cx, cy = x + w//2, y + h//2
+            cv2.putText(result, f"{i+1}", (x, y-8), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0), 2)
+            cv2.circle(result, (cx, cy), 3, (0,255,255), -1)
+
     def transform_coordinates_to_original(self, detections: List[Tuple[int, int, int, int, float, str]], 
                                         original_shape: Tuple[int, int]) -> List[Tuple[int, int, int, int, float, str]]:
         if not detections:
             return []
-        
         H_inv = np.linalg.inv(self.H)
-        transformed_detections = []
-        for x1, y1, x2, y2, confidence, label in detections:
-            corners = np.array([
-                [[x1, y1]],
-                [[x2, y2]]
-            ], dtype=np.float32)
-            
-            transformed_corners = cv2.perspectiveTransform(corners, H_inv)
-            
-            tx1, ty1 = transformed_corners[0][0]
-            tx2, ty2 = transformed_corners[1][0]
-            
+        transformed = []
+        for x1, y1, x2, y2, conf, label in detections:
+            corners = np.array([[[x1, y1]], [[x2, y2]]], dtype=np.float32)
+            tc = cv2.perspectiveTransform(corners, H_inv)
+            tx1, ty1 = tc[0][0]
+            tx2, ty2 = tc[1][0]
             tx1, tx2 = min(tx1, tx2), max(tx1, tx2)
             ty1, ty2 = min(ty1, ty2), max(ty1, ty2)
-            
             tx1 = max(0, min(tx1, original_shape[1]))
             ty1 = max(0, min(ty1, original_shape[0]))
             tx2 = max(0, min(tx2, original_shape[1]))
             ty2 = max(0, min(ty2, original_shape[0]))
-            
-            transformed_detections.append((int(tx1), int(ty1), int(tx2), int(ty2), confidence, label))
-        
-        return transformed_detections
-    
-    def draw_automatic_detections(self, frame: np.ndarray, result: np.ndarray):
-        detections = self.detect_objects_contours(frame)
-        for i, (x1, y1, x2, y2, confidence, label) in enumerate(detections):
-            cv2.rectangle(result, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(result, f"Object {i+1}", (x1, y1-10), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            transformed.append((int(tx1), int(ty1), int(tx2), int(ty2), conf, label))
+        return transformed
     
     def get_detections(self, frame: np.ndarray) -> List[Tuple[int, int, int]]:
         warped = cv2.warpPerspective(frame, self.H, (400, 400))
-        detections = self.detect_objects_contours(warped)
-        original_detections = self.transform_coordinates_to_original(detections, frame.shape[:2])
-        
-        simplified_detections = []
-        for i, (x1, y1, x2, y2, confidence, label) in enumerate(original_detections):
-            center_x = (x1 + x2) // 2
-            center_y = (y1 + y2) // 2
-            simplified_detections.append((i + 1, center_x, center_y))
-        
-        return simplified_detections
-    
+        rects = self._find_filtered_rects(warped)
+        if isinstance(rects, tuple):
+            rects = rects[0]
+        detections = [(x, y, x+w, y+h, 1.0, "Object") for (x,y,w,h) in rects]
+        original = self.transform_coordinates_to_original(detections, frame.shape[:2])
+        out = []
+        for i, (x1, y1, x2, y2, conf, label) in enumerate(original):
+            cx = (x1 + x2) // 2
+            cy = (y1 + y2) // 2
+            out.append((i+1, cx, cy))
+        return out
+
+    def save_centers(self, centers: List[Tuple[int,int,int]], path: str = "pipeline_output/centers.txt"):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as f:
+            for obj_num, cx, cy in centers:
+                f.write(f"{obj_num},{cx},{cy}\n")
+
     def run_pipeline(self, camera_id: int = 0):
         cap = None
         for cam_id in [camera_id, 1, 2, 0]:
-            cap = cv2.VideoCapture(cam_id)
+            cap = cv2.VideoCapture(0)
             if cap.isOpened():
                 ret, test_frame = cap.read()
                 if ret:
@@ -102,19 +191,11 @@ class CompletePipeline:
             else:
                 cap.release()
                 cap = None
-        
         if cap is None or not cap.isOpened():
-            self.run_test_mode()
             return
-        
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 720)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-        cap.set(cv2.CAP_PROP_FPS, 10)
-        
         frame_count = 0
         consecutive_failures = 0
         max_failures = 10
-        
         while True:
             ret, frame = cap.read()
             if not ret:
@@ -127,53 +208,34 @@ class CompletePipeline:
                     if not cap.isOpened():
                         break
                 continue
-            
             consecutive_failures = 0
             frame_count += 1
-            
-            detections = self.get_detections(frame)
-            
             warped = cv2.warpPerspective(frame, self.H, (400, 400))
             warped_with_boxes = warped.copy()
             self.draw_automatic_detections(warped, warped_with_boxes)
-            
             h = 400
             scale = h / frame.shape[0]
             original_resized = cv2.resize(frame, None, fx=scale, fy=scale)
             combined = np.hstack((original_resized, warped_with_boxes))
-            
+            centers = self.get_detections(frame)
+            if centers:
+                print("Detections:", ", ".join([f"({n},{x},{y})" for n,x,y in centers]))
+            else:
+                print("Detections: []")
             cv2.imshow("Complete Pipeline", combined)
-            
             key = cv2.waitKey(1) & 0xFF
+            if key == ord('s'):
+                self.save_centers(centers)
             if key == ord('q'):
                 break
-        
         cap.release()
         cv2.destroyAllWindows()
-    
-    def run_test_mode(self):
-        test_image = np.zeros((480, 640, 3), dtype=np.uint8)
-        cv2.rectangle(test_image, (100, 100), (200, 200), (0, 255, 0), -1)
-        cv2.circle(test_image, (400, 150), 50, (255, 0, 0), -1)
-        cv2.rectangle(test_image, (300, 300), (450, 400), (0, 0, 255), -1)
-        
-        detections = self.get_detections(test_image)
-        
-        h = 400
-        scale = h / test_image.shape[0]
-        original_resized = cv2.resize(test_image, None, fx=scale, fy=scale)
-        warped = cv2.warpPerspective(test_image, self.H, (400, 400))
-        combined = np.hstack((original_resized, warped))
-        
-        cv2.imshow("Test Mode - Complete Pipeline", combined)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+
 
 def main():
     parser = argparse.ArgumentParser(description="Complete Pipeline: Homography + Object Detection")
     parser.add_argument("--camera", type=int, default=0, help="Camera ID")
     args = parser.parse_args()
-    
     pipeline = CompletePipeline()
     pipeline.run_pipeline(args.camera)
 
