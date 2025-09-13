@@ -1,17 +1,18 @@
-from flask import Flask, request, jsonify
+import asyncio
+import base64
+import json
+import os
+import sys
 import cv2
 import numpy as np
-import base64
-import sys
-import os
+import websockets
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from complete_pipeline import CompletePipeline
 
-app = Flask(__name__)
 pipeline = CompletePipeline()
 
-def capture_image():
+async def capture_frame() -> np.ndarray:
     cap = None
     for cam_id in [0, 1, 2]:
         cap = cv2.VideoCapture(cam_id)
@@ -20,58 +21,48 @@ def capture_image():
             if ret:
                 cap.release()
                 return frame
-            else:
-                cap.release()
-                cap = None
-        else:
             cap.release()
-            cap = None
     return None
 
-@app.route('/capture', methods=['GET'])
-def capture_and_process():
+async def process_request(message: str) -> str:
     try:
-        frame = capture_image()
-        if frame is None:
-            return jsonify({'error': 'Could not capture image from camera'}), 500
-        
-        detections = pipeline.get_detections(frame)
-        
-        warped = cv2.warpPerspective(frame, pipeline.H, (400, 400))
-        warped_with_boxes = warped.copy()
-        pipeline.draw_automatic_detections(warped, warped_with_boxes)
-        
-        # Save image with boxes temporarily
-        import time
-        timestamp = int(time.time())
-        filename = f"temp_image_{timestamp}.jpg"
-        cv2.imwrite(filename, warped_with_boxes)
-        
-        _, buffer = cv2.imencode('.jpg', warped_with_boxes)
-        image_base64 = base64.b64encode(buffer).decode('utf-8')
-        
-        objects = []
-        for obj_num, center_x, center_y in detections:
-            objects.append({
-                'object_number': obj_num,
-                'center_x': center_x,
-                'center_y': center_y
-            })
-        
-        return jsonify({
-            'success': True,
-            'image': image_base64,
-            'objects': objects,
-            'object_count': len(objects),
-            'saved_file': filename
-        })
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        data = json.loads(message) if message else {}
+    except Exception:
+        data = {}
 
-@app.route('/health', methods=['GET'])
-def health_check():
-    return jsonify({'status': 'healthy'})
+    frame = await capture_frame()
+    if frame is None:
+        return json.dumps({'success': False, 'error': 'Could not capture image from camera'})
+
+    detections = pipeline.get_detections(frame)
+    warped = cv2.warpPerspective(frame, pipeline.H, (400, 400))
+    warped_with_boxes = warped.copy()
+    pipeline.draw_automatic_detections(warped, warped_with_boxes)
+
+    _, buffer = cv2.imencode('.jpg', warped_with_boxes)
+    image_base64 = base64.b64encode(buffer).decode('utf-8')
+
+    objects = [{'object_number': n, 'center_x': x, 'center_y': y} for n, x, y in detections]
+
+    return json.dumps({
+        'success': True,
+        'image': image_base64,
+        'objects': objects,
+        'object_count': len(objects)
+    })
+
+async def handler(websocket):
+    async for message in websocket:
+        response = await process_request(message)
+        await websocket.send(response)
+
+async def main():
+    async with websockets.serve(handler, '0.0.0.0', 5000, ping_interval=20, ping_timeout=20):
+        print('WebSocket server running on ws://0.0.0.0:5000')
+        await asyncio.Future()
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
