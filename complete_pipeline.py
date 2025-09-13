@@ -109,14 +109,14 @@ class CompletePipeline:
         
         return transformed_detections
     
-    def process_frame(self, frame: np.ndarray) -> Tuple[np.ndarray, np.ndarray, List[Tuple[int, int, int, int, float, str]]]:
+    def process_frame(self, frame: np.ndarray) -> Tuple[np.ndarray, np.ndarray, List[Tuple[int, int, int]]]:
         """
         Process a single frame through the complete pipeline
         
         Returns:
             original_with_boxes: Original frame with bounding boxes
             warped: Bird's eye view frame
-            detections: List of detected objects
+            detections: List of (object_number, center_x, center_y) tuples
         """
         # Step 1: Apply homography transformation
         warped = cv2.warpPerspective(frame, self.H, (400, 400))
@@ -127,21 +127,53 @@ class CompletePipeline:
         # Step 3: Transform coordinates back to original image space
         original_detections = self.transform_coordinates_to_original(detections, frame.shape[:2])
         
-        # Step 4: Draw bounding boxes on original image
+        # Step 4: Convert to simplified format (object_number, center_x, center_y)
+        simplified_detections = []
+        for i, (x1, y1, x2, y2, confidence, label) in enumerate(original_detections):
+            center_x = (x1 + x2) // 2
+            center_y = (y1 + y2) // 2
+            simplified_detections.append((i + 1, center_x, center_y))
+        
+        # Step 5: Draw bounding boxes on original image
         original_with_boxes = frame.copy()
         for i, (x1, y1, x2, y2, confidence, label) in enumerate(original_detections):
             cv2.rectangle(original_with_boxes, (x1, y1), (x2, y2), (0, 255, 0), 2)
             cv2.putText(original_with_boxes, f"Object {i+1}", (x1, y1-10), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
         
-        # Step 5: Draw bounding boxes on warped image
+        # Step 6: Draw bounding boxes on warped image
         warped_with_boxes = warped.copy()
         for i, (x1, y1, x2, y2, confidence, label) in enumerate(detections):
             cv2.rectangle(warped_with_boxes, (x1, y1), (x2, y2), (0, 255, 0), 2)
             cv2.putText(warped_with_boxes, f"Object {i+1}", (x1, y1-10), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
         
-        return original_with_boxes, warped_with_boxes, original_detections
+        return original_with_boxes, warped_with_boxes, simplified_detections
+    
+    def get_detections_only(self, frame: np.ndarray) -> List[Tuple[int, int, int]]:
+        """
+        Get only the detection results without visual processing
+        
+        Returns:
+            List of (object_number, center_x, center_y) tuples
+        """
+        # Step 1: Apply homography transformation
+        warped = cv2.warpPerspective(frame, self.H, (400, 400))
+        
+        # Step 2: Detect objects in the warped image
+        detections = self.detect_objects(warped)
+        
+        # Step 3: Transform coordinates back to original image space
+        original_detections = self.transform_coordinates_to_original(detections, frame.shape[:2])
+        
+        # Step 4: Convert to simplified format (object_number, center_x, center_y)
+        simplified_detections = []
+        for i, (x1, y1, x2, y2, confidence, label) in enumerate(original_detections):
+            center_x = (x1 + x2) // 2
+            center_y = (y1 + y2) // 2
+            simplified_detections.append((i + 1, center_x, center_y))
+        
+        return simplified_detections
     
     def run_pipeline(self, camera_id: int = 0):
         """Run the complete pipeline"""
@@ -185,6 +217,12 @@ class CompletePipeline:
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             cv2.putText(combined, "Original (left) | Bird's-eye (right)", (10, 60), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            
+            # Print object coordinates
+            if detections:
+                print("Detected objects:")
+                for obj_num, center_x, center_y in detections:
+                    print(f"  Object {obj_num}: center at ({center_x}, {center_y})")
             
             # Display combined frame
             cv2.imshow("Complete Pipeline", combined)
@@ -237,7 +275,7 @@ class CompletePipeline:
         
         cv2.destroyWindow("Calibration")
     
-    def save_results(self, original: np.ndarray, warped: np.ndarray, detections: List[Tuple[int, int, int, int, float, str]]):
+    def save_results(self, original: np.ndarray, warped: np.ndarray, detections: List[Tuple[int, int, int]]):
         """Save pipeline results"""
         os.makedirs("pipeline_output", exist_ok=True)
         
@@ -247,9 +285,9 @@ class CompletePipeline:
         
         # Save detection data
         with open("pipeline_output/detections.txt", "w") as f:
-            f.write("Object Detections:\n")
-            for i, (x1, y1, x2, y2, confidence, label) in enumerate(detections):
-                f.write(f"Object {i+1}: ({x1}, {y1}, {x2}, {y2}) - Confidence: {confidence:.2f}\n")
+            f.write("Object Detections (object_number, center_x, center_y):\n")
+            for obj_num, center_x, center_y in detections:
+                f.write(f"Object {obj_num}: center at ({center_x}, {center_y})\n")
         
         print(f"Results saved to pipeline_output/ - {len(detections)} objects detected")
 
