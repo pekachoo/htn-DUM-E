@@ -9,12 +9,19 @@ Servo roll;
 Servo servoClaw;
 
 // Assign Arduino pins (adjust as needed)
-const int YAW_PIN    = 3;
-const int PITCH1_PIN = 5;
-const int PITCH2_PIN = 6;
+const int YAW_PIN    = 6;
+const int PITCH1_PIN = 7;
+const int PITCH2_PIN = 8;
 const int PITCH3_PIN = 9;
-const int ROLL_PIN = 7;
-const int CLAW_PIN = 10;
+const int ROLL_PIN = 10;
+const int CLAW_PIN = 11;
+
+void deserializeAndSetServos(String data) {
+  // Expected format: "yaw:30;p1:15;p2:30;p3:45;roll:30;claw:40"
+  int yaw, p1, p2, p3, roll_pos, claw;
+  sscanf(data.c_str(), "yaw:%d;p1:%d;p2:%d;p3:%d;roll:%d;claw:%d", &yaw, &p1, &p2, &p3, &roll_pos, &claw);
+  setServoPositions(yaw, p1, p2, p3, roll_pos, claw);
+}
 
 // Helper function to command all servos at once
 void setServoPositions(int yaw, int p1, int p2, int p3, int roll_pos, int claw) {
