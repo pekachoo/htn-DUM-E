@@ -16,7 +16,7 @@ void loop() {
 
   delay(5000);  // wait half a second
 
-  myServo.write(360);
+  myServo.write(180);
 
   // Move back to 0 degrees
   // for (int pos = 180; pos >= 0; pos--) {
@@ -24,5 +24,5 @@ void loop() {
   //   delay(15);
   // }
 
-  delay(500);
+  delay(1000);
 }
