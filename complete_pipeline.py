@@ -71,7 +71,6 @@ class CompletePipeline:
 
     def _red_mask(self, frame: np.ndarray) -> np.ndarray:
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        # Two red ranges
         lower1 = np.array([0, 80, 50], dtype=np.uint8)
         upper1 = np.array([10, 255, 255], dtype=np.uint8)
         lower2 = np.array([170, 80, 50], dtype=np.uint8)
@@ -89,16 +88,15 @@ class CompletePipeline:
         canny = cv2.Canny(gray, 100, 200)
         canny = cv2.dilate(canny, np.ones((3,3), np.uint8), iterations=1)
         red = self._red_mask(frame)
-        # Combine edges and red color regions
         combo = cv2.bitwise_or(canny, red)
         contours, _ = cv2.findContours(combo, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         candidates: List[Tuple[int,int,int,int,float]] = []
         for c in contours:
             area = cv2.contourArea(c)
-            if area < 1200:
+            if area < 1400:
                 continue
             x, y, w, h = cv2.boundingRect(c)
-            if w < 24 or h < 24:
+            if w < 26 or h < 26:
                 continue
             rect_area = float(w * h)
             extent = area / (rect_area + 1e-6)
@@ -112,32 +110,32 @@ class CompletePipeline:
             edge_density = float(np.count_nonzero(roi_edges)) / (rect_area + 1e-6)
             roi_red = red[y:y+h, x:x+w]
             red_cov = float(np.count_nonzero(roi_red)) / (rect_area + 1e-6)
-            # Filters: allow either good edges or enough red coverage
-            if extent < 0.15:
+            if extent < 0.17:
                 continue
-            if solidity < 0.30:
+            if solidity < 0.33:
                 continue
             if ar < 0.20 or ar > 6.0:
                 continue
-            if circularity < 0.03:
+            if circularity < 0.035:
                 continue
-            if edge_density < 0.01 and red_cov < 0.05:
+            if edge_density < 0.012 and red_cov < 0.07:
                 continue
             score = min(1.0, (area / 30000.0) + 0.7*red_cov + 0.4*edge_density + 0.2*extent)
             candidates.append((x, y, w, h, float(score)))
         candidates = self._apply_nms(candidates, 0.35)
         rects = [(x,y,w,h) for (x,y,w,h,_) in candidates]
         rects = self._persistence_filter(rects)
-        return rects, canny, red
+        return rects
 
     def draw_automatic_detections(self, frame: np.ndarray, result: np.ndarray):
-        rects, _, _ = self._find_filtered_rects(frame)
+        rects = self._find_filtered_rects(frame)
+        if isinstance(rects, tuple):
+            rects = rects[0]
         for i, (x, y, w, h) in enumerate(rects):
             cv2.rectangle(result, (x, y), (x + w, y + h), (0, 255, 0), 2)
             cx, cy = x + w//2, y + h//2
-            r = int(0.5 * min(w, h))
-            cv2.circle(result, (cx, cy), r, (255, 0, 0), 1)
-            cv2.putText(result, f"Object {i+1}", (x, y-8), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 1)
+            cv2.putText(result, f"{i+1}", (x, y-8), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0), 2)
+            cv2.circle(result, (cx, cy), 3, (0,255,255), -1)
 
     def transform_coordinates_to_original(self, detections: List[Tuple[int, int, int, int, float, str]], 
                                         original_shape: Tuple[int, int]) -> List[Tuple[int, int, int, int, float, str]]:
@@ -161,7 +159,9 @@ class CompletePipeline:
     
     def get_detections(self, frame: np.ndarray) -> List[Tuple[int, int, int]]:
         warped = cv2.warpPerspective(frame, self.H, (400, 400))
-        rects, _, _ = self._find_filtered_rects(warped)
+        rects = self._find_filtered_rects(warped)
+        if isinstance(rects, tuple):
+            rects = rects[0]
         detections = [(x, y, x+w, y+h, 1.0, "Object") for (x,y,w,h) in rects]
         original = self.transform_coordinates_to_original(detections, frame.shape[:2])
         out = []
@@ -170,7 +170,13 @@ class CompletePipeline:
             cy = (y1 + y2) // 2
             out.append((i+1, cx, cy))
         return out
-    
+
+    def save_centers(self, centers: List[Tuple[int,int,int]], path: str = "pipeline_output/centers.txt"):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as f:
+            for obj_num, cx, cy in centers:
+                f.write(f"{obj_num},{cx},{cy}\n")
+
     def run_pipeline(self, camera_id: int = 0):
         cap = None
         for cam_id in [camera_id, 1, 2, 0]:
@@ -211,8 +217,15 @@ class CompletePipeline:
             scale = h / frame.shape[0]
             original_resized = cv2.resize(frame, None, fx=scale, fy=scale)
             combined = np.hstack((original_resized, warped_with_boxes))
+            centers = self.get_detections(frame)
+            if centers:
+                print("Detections:", ", ".join([f"({n},{x},{y})" for n,x,y in centers]))
+            else:
+                print("Detections: []")
             cv2.imshow("Complete Pipeline", combined)
             key = cv2.waitKey(1) & 0xFF
+            if key == ord('s'):
+                self.save_centers(centers)
             if key == ord('q'):
                 break
         cap.release()
