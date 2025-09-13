@@ -14,7 +14,7 @@ class IKSolver:
         elbow='down' -> theta2 positive
         elbow='up'   -> theta2 negative
         """
-        l1, l2, l3 = 12.0, 12.0, 6.0  # link lengths (cm)
+        l1, l2, l3 = self.P1, self.P2, self.P3  # link lengths (cm)
         # wrist position
         xw = x - l3 * math.cos(phi)
         yw = y - l3 * math.sin(phi)
@@ -56,17 +56,30 @@ def sendTargets(angles, uno, master):
     if uno.in_waiting:
         print("Arduino:", uno.readline().decode().strip())
 
+def get_yaw_angle(x, y):
+    angle = math.atan2(y, x)
+    wrap = lambda a: (a + math.pi) % (2*math.pi) - math.pi
+    return wrap(angle)
+
+def projection(x, y, z):
+    return math.sqrt(x**2 + y**2), z
+
+
 if __name__ == "__main__":
 
-    ikSolver = IKSolver(P1=12, P2=12, P3=6)
+    ikSolver = IKSolver(P1=12.0, P2=12.3, P3=8.0)
 
     try:
         while True:
-            x_target = 10
-            y_target = 0
-            phi = 270 * math.pi / 180
+            # SETTING TARGETS
+            x, y, z = 22.83, -22.83, 0  # cm
+            phi = 0 * math.pi / 180
+            roll_angle, gripper_angle = 0, 0 
 
-            angles = ikSolver.solve(x_target, y_target, phi, elbow='up')
+            # Calculate angles
+            x_target, y_target = projection(x, y, z)
+            pitch_angles = ikSolver.solve(x_target, y_target, phi, elbow='up')
+            angles = (get_yaw_angle(x, y),) + pitch_angles + (roll_angle, gripper_angle)
             # sendTargets(angles, uno, master)
             print(angles)
 
