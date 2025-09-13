@@ -18,15 +18,15 @@ FLASK_ARM_ENDPOINT = (
 LOCAL_IMAGE_PATH = "current_image.jpg"  # Local path to save the image
 
 
-def get_image_from_flask(user_prompt):
+def get_image_from_flask():
     """
     Get image and additional text from Flask endpoint
     Returns: (image_saved_path, additional_text)
     """
     try:
-        print(f"📡 Requesting image from Flask endpoint with prompt: '{user_prompt}'")
+        print(f"📡 Requesting image from Flask endpoint")
 
-        response = requests.get(FLASK_IMAGE_ENDPOINT, params={"prompt": user_prompt})
+        response = requests.get(FLASK_IMAGE_ENDPOINT)
         response.raise_for_status()
 
         data = response.json()
@@ -123,42 +123,64 @@ def analyze_with_groq(image_path, user_prompt, additional_text=""):
         client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
         # Comprehensive prompt for coordinate-based actions
-        prompt_text = f"""You are DUM-E, a robotic arm assistant. Analyze the image and determine the exact coordinates needed to complete the user's request.
+        prompt_text = f"""
+        
+You are DUM-E, a robotic arm assistant. Analyze the image and determine the exact coordinates needed to complete the user's request.
 
 USER REQUEST: {user_prompt}
 ADDITIONAL CONTEXT: {additional_text}
 
-TASK: Based on the image and request, provide a JSON response with the exact coordinates and parameters needed for the robotic arm to complete the task.
+INSTRUCTIONS:
+You are DUM-E, a highly capable robotic arm assistant. Your job is to take the user's natural language request and, using the provided image and additional context, reason step-by-step about how to accomplish the task using the robotic arm. The computer vision (CV) pipeline has already detected and localized all objects in the scene, and you are provided with their bounding boxes and coordinates (from the flask_get_image endpoint). You do not need to do any image analysis or object detection yourself—just use the information given.
+
+Your main responsibility is to plan and decide what the arm should do next, one action at a time, until the task is complete. After each action, a new image and updated context will be provided, and you will repeat the process until you determine the task is finished.
+
+EXAMPLES:
+- If the user asks to "sort the objects into two bins by color," you should:
+    1. Identify all objects and their colors using the provided context.
+    2. For each object, decide which bin it belongs to and generate a pick-and-place action for that object (e.g., pick up object 1 at [x1, y1, z1], move to bin A at [x2, y2, z2], and release).
+    3. Only output one action at a time (e.g., pick and place for a single object), then wait for the next image/context update before proceeding to the next object.
+    4. When all objects are sorted, set "task_complete": true.
+
+- If the user asks to "play a specific song," you have access to a tool that provides the first 10 notes of the song. Use this information to reason about which keys to press, and generate actions for the arm to press the correct keys in sequence, one at a time.
+
+GENERAL GUIDELINES:
+- Use the provided object coordinates and context to plan the arm's actions.
+- You are responsible for all high-level reasoning and planning. The CV and inverse kinematics (IK) systems will handle the low-level movement and perception.
+- For each step, output a single action (e.g., pick up an object, move to a location, press a key, etc.).
+- After each action, a new image and updated context will be provided. Continue until the task is complete.
+- If the task is already complete or cannot be performed, set "task_complete": true and provide an explanation in the "task_description" or "error" field.
+- If you do not understand the request, respond with: {"task_complete": true, "error": "Cannot understand request"}
 
 RESPONSE FORMAT (JSON only):
 {{
-    "in_coord": [x, y, z],
-    "out_coord": [x, y, z], 
-    "direction": [x, y, z],
-    "yaw": float,
-    "pitch": float,
-    "roll": float,
-    "gripper_action": "open" or "close",
+    "in_coord": [x, y, z],           // Where to pick up or start the action
+    "out_coord": [x, y, z],          // Where to place, move, or end the action
+    "direction": [x, y, z],          // Direction of movement or approach vector
+    "yaw": float,                    // Yaw angle for the end effector
+    "pitch": float,                  // Pitch angle for the end effector
+    "roll": float,                   // Roll angle for the end effector
+    "gripper_action": "open" or "close", // Whether to open or close the gripper
     "task_description": "Brief description of what the arm will do",
-    "task_complete": false
+    "task_complete": false           // Set to true only when the entire task is finished or cannot be done
 }}
 
 COORDINATE SYSTEM:
 - X: left/right (negative = left, positive = right)
-- Y: forward/backward (negative = backward, positive = forward)  
+- Y: forward/backward (negative = backward, positive = forward)
 - Z: up/down (negative = down, positive = up)
-- All coordinates in millimeters
-- Origin (0,0,0) is at the base of the arm
+- All coordinates are in millimeters
+- The origin (0,0,0) is at the base of the arm
 
-IMPORTANT:
-- Only respond with valid JSON
-- If the task is complete or cannot be done, set "task_complete": true
-- Be precise with coordinates based on what you see in the image
-- If you cannot understand the request, respond with: {{"task_complete": true, "error": "Cannot understand request"}}"""
+REMEMBER:
+- Only output valid JSON in the specified format.
+- Plan and reason about the task step-by-step, one action at a time.
+- Use the provided context and coordinates for all decisions.
+- Wait for new context after each action before proceeding."""
 
         # Make the API call
         completion = client.chat.completions.create(
-            model="llava-v1.5-7b-4096-preview",
+            model="meta-llama/llama-4-maverick-17b-128e-instruct",
             messages=[
                 {
                     "role": "user",
