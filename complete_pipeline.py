@@ -93,10 +93,8 @@ class CompletePipeline:
             ar = w / float(h)
             peri = cv2.arcLength(c, True)
             circularity = 4.0 * np.pi * area / (peri*peri + 1e-6)
-            # Edge density inside box
             roi = canny[y:y+h, x:x+w]
             edge_density = float(np.count_nonzero(roi)) / (rect_area + 1e-6)
-            # Filters
             if extent < 0.15:
                 continue
             if solidity < 0.30:
