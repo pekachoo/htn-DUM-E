@@ -107,9 +107,9 @@ class CompletePipeline:
             self.run_test_mode()
             return
         
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-        cap.set(cv2.CAP_PROP_FPS, 30)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 720)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        cap.set(cv2.CAP_PROP_FPS, 10)
         
         frame_count = 0
         consecutive_failures = 0
