@@ -1,6 +1,6 @@
-# Backend Flask Server
+# Backend WebSocket Server
 
-Flask server that processes images using the complete pipeline (homography + object detection).
+WebSocket server that captures a camera frame, runs the complete pipeline (homography + object detection), and returns a base64 image (with boxes) and object centers.
 
 ## Setup
 
@@ -14,50 +14,41 @@ pip install -r requirements.txt
 python app.py
 ```
 
-The server will start on `http://localhost:5000`
+The server starts at `ws://localhost:5000`.
 
-## API Endpoints
+## Protocol
+- Send any JSON message (or empty string). The server captures a new frame, processes it, and sends a JSON response.
 
-### GET /capture
-Capture an image from camera, process it through complete pipeline, and return detected objects with their center coordinates.
-
-**Request:**
-- Method: GET
-- No body required
-
-**Response:**
+### Response JSON
 ```json
 {
   "success": true,
-  "image": "base64_encoded_image",
+  "image": "base64_jpeg",
   "objects": [
-    {
-      "object_number": 1,
-      "center_x": 150,
-      "center_y": 200
-    },
-    {
-      "object_number": 2,
-      "center_x": 300,
-      "center_y": 250
-    }
+    {"object_number": 1, "center_x": 150, "center_y": 200}
   ],
-  "object_count": 2
+  "object_count": 1
 }
 ```
 
-### GET /health
-Health check endpoint.
+## Minimal Python Client
+```python
+import asyncio, websockets, json, base64
 
-**Response:**
-```json
-{
-  "status": "healthy"
-}
+async def main():
+    uri = "ws://localhost:5000"
+    async with websockets.connect(uri) as ws:
+        await ws.send(json.dumps({"capture": True}))
+        msg = await ws.recv()
+        data = json.loads(msg)
+        print("objects:", data.get("objects"))
+        if data.get("image"):
+            with open("result.jpg", "wb") as f:
+                f.write(base64.b64decode(data["image"]))
+
+asyncio.run(main())
 ```
 
-## Usage Example
-
-```bash
-curl http://localhost:5000/capture
-```
+## Notes
+- The server opens the camera per request (tries IDs 0,1,2). Adjust if needed.
+- Response includes a processed bird's-eye view image with bounding boxes.
