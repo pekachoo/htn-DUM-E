@@ -84,7 +84,9 @@ def projection(x, y, z):
     
 
 def grab(ikSolver, x, y, phi, ser, x2, y2):
-    idle_angle = ikSolver.solve(math.sqrt(x**2 + y**2), 10, 300 * math.pi / 180, elbow='up')
+    x += 2
+    y -= 3
+    idle_angle = ikSolver.solve(math.sqrt(x**2 + y**2), 5, 300 * math.pi / 180, elbow='up')
     angles = (get_yaw_angle(x, y),) + idle_angle + (0, 1)  # open claw
     angles = tuple(int(math.degrees(a)) for a in angles)  # deg
     sendTargets(angles, ser)
@@ -206,7 +208,9 @@ if __name__ == "__main__":
         # shake_hand(ikSolver, ser)
         # shake_no(ikSolver, ser)
         # shake_yes(ikSolver, ser)'
-        grab(ikSolver, 14.40, 14.90, 270, ser, 0, 20)
+
+        #2 -3
+        grab(ikSolver, 6.08, 17.93, 270, ser, 0, 15)
 
     except KeyboardInterrupt:
         print("Stopped by user.")
