@@ -137,45 +137,27 @@ class CompletePipeline:
             cv2.putText(result, f"{i+1}", (x, y-8), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,255,0), 2)
             cv2.circle(result, (cx, cy), 3, (0,255,255), -1)
 
-    def transform_coordinates_to_original(self, detections: List[Tuple[int, int, int, int, float, str]], 
-                                        original_shape: Tuple[int, int]) -> List[Tuple[int, int, int, int, float, str]]:
-        if not detections:
-            return []
-        H_inv = np.linalg.inv(self.H)
-        transformed = []
-        for x1, y1, x2, y2, conf, label in detections:
-            corners = np.array([[[x1, y1]], [[x2, y2]]], dtype=np.float32)
-            tc = cv2.perspectiveTransform(corners, H_inv)
-            tx1, ty1 = tc[0][0]
-            tx2, ty2 = tc[1][0]
-            tx1, tx2 = min(tx1, tx2), max(tx1, tx2)
-            ty1, ty2 = min(ty1, ty2), max(ty1, ty2)
-            tx1 = max(0, min(tx1, original_shape[1]))
-            ty1 = max(0, min(ty1, original_shape[0]))
-            tx2 = max(0, min(tx2, original_shape[1]))
-            ty2 = max(0, min(ty2, original_shape[0]))
-            transformed.append((int(tx1), int(ty1), int(tx2), int(ty2), conf, label))
-        return transformed
-    
-    def get_detections(self, frame: np.ndarray) -> List[Tuple[int, int, int]]:
+    def get_detections(self, frame: np.ndarray) -> List[Tuple[int, float, float]]:
+        # Get detections in the warped (homography) space, and return their coordinates in that space
         warped = cv2.warpPerspective(frame, self.H, (400, 400))
         rects = self._find_filtered_rects(warped)
         if isinstance(rects, tuple):
             rects = rects[0]
-        detections = [(x, y, x+w, y+h, 1.0, "Object") for (x,y,w,h) in rects]
-        original = self.transform_coordinates_to_original(detections, frame.shape[:2])
         out = []
-        for i, (x1, y1, x2, y2, conf, label) in enumerate(original):
-            cx = (x1 + x2) // 2
-            cy = (y1 + y2) // 2
-            out.append((i+1, cx, cy))
+        for i, (x, y, w, h) in enumerate(rects):
+            cx = x + w // 2
+            cy = y + h // 2
+            # Convert to (x, 400-y), then scale to cm
+            cx_cm = (cx * 30.0) / 400.0
+            cy_cm = ((400 - cy) * 30.0) / 400.0
+            out.append((i+1, cx_cm, cy_cm))  # These are in cm, with y flipped
         return out
 
-    def save_centers(self, centers: List[Tuple[int,int,int]], path: str = "pipeline_output/centers.txt"):
+    def save_centers(self, centers: List[Tuple[int,float,float]], path: str = "pipeline_output/centers.txt"):
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as f:
             for obj_num, cx, cy in centers:
-                f.write(f"{obj_num},{cx},{cy}\n")
+                f.write(f"{obj_num},{cx:.2f},{cy:.2f}\n")
 
     def run_pipeline(self, camera_id: int = 0):
         cap = None
@@ -219,9 +201,9 @@ class CompletePipeline:
             combined = np.hstack((original_resized, warped_with_boxes))
             centers = self.get_detections(frame)
             if centers:
-                print("Detections:", ", ".join([f"({n},{x},{y})" for n,x,y in centers]))
+                print("Detections (cm):", ", ".join([f"({n},{x:.2f},{y:.2f})" for n,x,y in centers]))
             else:
-                print("Detections: []")
+                print("Detections (cm): []")
             cv2.imshow("Complete Pipeline", combined)
             key = cv2.waitKey(1) & 0xFF
             if key == ord('s'):
