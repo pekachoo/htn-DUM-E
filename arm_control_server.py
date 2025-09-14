@@ -5,6 +5,7 @@ Provides a single endpoint that routes to appropriate arm functions based on act
 """
 
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import serial
 import time
 import math
@@ -24,6 +25,7 @@ from pi_to_arduino import (
 )
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
 
 # Global variables for arm control
 ser = None
@@ -66,6 +68,9 @@ def arm_control():
     """
     global ser, ikSolver, arm_ready
 
+    print(f"Received request from {request.remote_addr}")
+    print(f"Request data: {request.get_json()}")
+
     if not arm_ready:
         return (
             jsonify(
@@ -86,17 +91,19 @@ def arm_control():
 
         # Route to appropriate function based on action
         if action == "grab":
-            # grab(ikSolver, x, y, phi, ser)
+            # grab(ikSolver, x, y, phi, ser, x2, y2)
             valid, msg = validate_coordinates(data)
             if not valid:
                 return jsonify({"success": False, "error": msg}), 400
 
             x = float(data["x"])
             y = float(data["y"])
-            phi = float(data.get("phi", 0))  # Default to 0 if not provided
+            phi = float(data.get("phi", 270))  # Default to 270 for top-down approach
+            x2 = float(data.get("x2", x))  # Default to same position if not provided
+            y2 = float(data.get("y2", y))  # Default to same position if not provided
 
-            print(f"Executing GRAB: x={x}, y={y}, phi={phi}")
-            grab(ikSolver, x, y, phi, ser)
+            print(f"Executing GRAB: x={x}, y={y}, phi={phi}, drop_at=({x2}, {y2})")
+            grab(ikSolver, x, y, phi, ser, x2, y2)
 
         elif action == "move_to_idle":
             # move_to_idle_position(ikSolver, ser)
@@ -227,7 +234,7 @@ if __name__ == "__main__":
     arm_thread.daemon = True
     arm_thread.start()
 
-    print("Starting Flask server on http://localhost:5000")
+    print("Starting Flask server on http://0.0.0.0:5000")
     print("Available endpoints:")
     print("  POST /arm_control - Main arm control endpoint")
     print("  GET  /arm_status - Check arm status")
