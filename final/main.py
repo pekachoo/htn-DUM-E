@@ -11,11 +11,16 @@ import time
 import json
 import base64
 import os
+import requests
 from groq import Groq
 from dotenv import load_dotenv
 from capture_detection import capture_with_detection
 
 load_dotenv()
+
+# === Set your Flask server URL here ===
+ARM_SERVER_URL = "http://localhost:5000"
+# ======================================
 
 
 def encode_image(image_path):
@@ -70,9 +75,9 @@ def analyze_with_groq(image_path, user_prompt, detections):
         else:
             detection_text = "No objects detected"
 
-        # Prompt: lenient, multi-object, do the next thing, don't repeat, just eyeball it
+        # Prompt: action-based system with coordinates
         prompt_text = f"""
-You are DUM-E, a robotic arm assistant. Your job is to analyze the image and context, and figure out the next coordinates and actions needed to complete the user's request.
+You are DUM-E, a robotic arm assistant. Your job is to analyze the image and context, and determine the next action and coordinates needed to complete the user's request.
 
 USER REQUEST (text): {user_prompt}
 DETECTION CONTEXT (text): {detection_text}
@@ -103,15 +108,28 @@ COORDINATE SYSTEM (IMPORTANT!):
 - DO NOT use values below 2 or above 28 for X or Y (avoid edge cases).
 - All coordinates must be in centimeters (cm), not millimeters.
 
+AVAILABLE ACTIONS:
+- "grab": Pick up an object at coordinates (requires x, y, phi)
+- "move": Move to coordinates with orientation (requires x, y, z, phi, claw_open, roll_angle)
+- "move_to_idle": Move to safe idle position (no coordinates needed)
+- "wave_bye": Wave goodbye gesture (no coordinates needed)
+- "shake_yes": Nod yes gesture (no coordinates needed)
+- "shake_no": Shake no gesture (no coordinates needed)
+- "shake_hand": Handshake gesture (no coordinates needed)
+- "move_to_hold": Move to hold position (requires x, y)
+- "hold": Hold at position (requires x, y)
+- "drop_off": Drop object at coordinates (requires x, y, z, phi)
+
 RESPONSE FORMAT (JSON as plain text only, no markdown, no code block, no explanation):
 {{
-    "in_coord": [x, y, 0],           // Where to pick up or start the action (in cm, Z=0, avoid edge values)
-    "out_coord": [x, y, 0],          // Where to place, move, or end the action (in cm, Z=0, avoid edge values)
-    "direction": [x, y, 0],          // Direction of movement or approach vector (in cm, Z=0, can be approximate)
-    "yaw": float,                    // Yaw angle for the end effector (approximate is fine)
-    "pitch": float,                  // Pitch angle for the end effector (approximate is fine)
-    "roll": float,                   // Roll angle for the end effector (approximate is fine)
-    "gripper_action": "open" or "close", // Whether to open or close the gripper
+    "action": "grab",                // Action to perform (see AVAILABLE ACTIONS above)
+    "x": float,                      // X coordinate in cm (required for most actions)
+    "y": float,                      // Y coordinate in cm (required for most actions)
+    "z": float,                      // Z coordinate in cm (optional, defaults to 0)
+    "phi": float,                    // Angle in degrees (optional, defaults to 0)
+    "claw_open": 1,                  // 1 for open, 0 for closed (optional, defaults to 1)
+    "roll_angle": float,             // Roll angle in degrees (optional, defaults to 0)
+    "elbow": "up",                   // "up" or "down" (optional, defaults to "up")
     "task_description": "Brief description of what the arm will do",
     "task_complete": false           // Set to true only when the entire task is finished or cannot be done. Use reasonable, human-like judgment.
 }}
@@ -124,6 +142,7 @@ REMEMBER:
 - All coordinates must be in centimeters (cm), and avoid using values near 0 or 30 for X and Y (stay between 2 and 28).
 - Z should always be 0.
 - You don't need to be accurate—close enough is good enough!
+- Choose the appropriate action based on what needs to be done (grab for picking up, move for moving, gestures for communication, etc.)
 """
 
         # Make the API call
@@ -170,24 +189,99 @@ REMEMBER:
         return None
 
 
-def send_to_arm_control(coordinate_dict):
-    """Mock arm control function - just prints the instructions"""
+def send_to_arm_control(action_dict, arm_server_url=None):
+    """Send instructions to the arm control server"""
+    if arm_server_url is None:
+        arm_server_url = ARM_SERVER_URL
     try:
         print(f"ARM CONTROL INSTRUCTIONS:")
-        print(f"   Pick up at: {coordinate_dict.get('in_coord', 'N/A')}")
-        print(f"   Place at: {coordinate_dict.get('out_coord', 'N/A')}")
-        print(f"   Direction: {coordinate_dict.get('direction', 'N/A')}")
-        print(f"   Gripper: {coordinate_dict.get('gripper_action', 'N/A')}")
-        print(f"   Yaw: {coordinate_dict.get('yaw', 'N/A')}")
-        print(f"   Pitch: {coordinate_dict.get('pitch', 'N/A')}")
-        print(f"   Roll: {coordinate_dict.get('roll', 'N/A')}")
-        print(f"   Task: {coordinate_dict.get('task_description', 'N/A')}")
-        print(f"   Complete: {coordinate_dict.get('task_complete', False)}")
-        print("Arm control simulation completed successfully")
+        print(f"   Action: {action_dict.get('action', 'N/A')}")
+        print(f"   X: {action_dict.get('x', 'N/A')}")
+        print(f"   Y: {action_dict.get('y', 'N/A')}")
+        print(f"   Z: {action_dict.get('z', 'N/A')}")
+        print(f"   Phi: {action_dict.get('phi', 'N/A')}")
+        print(f"   Claw Open: {action_dict.get('claw_open', 'N/A')}")
+        print(f"   Roll Angle: {action_dict.get('roll_angle', 'N/A')}")
+        print(f"   Elbow: {action_dict.get('elbow', 'N/A')}")
+        print(f"   Task: {action_dict.get('task_description', 'N/A')}")
+        print(f"   Complete: {action_dict.get('task_complete', False)}")
+
+        # Extract action and parameters
+        action = action_dict.get("action", "").lower()
+
+        # Build the request data based on the action
+        request_data = {"action": action}
+
+        # Add coordinates and parameters based on action requirements
+        if action in ["grab", "move", "move_to_hold", "hold", "drop_off"]:
+            if "x" in action_dict:
+                request_data["x"] = float(action_dict["x"])
+            if "y" in action_dict:
+                request_data["y"] = float(action_dict["y"])
+
+        if action in ["move", "drop_off"]:
+            if "z" in action_dict:
+                request_data["z"] = float(action_dict["z"])
+
+        if action in ["grab", "move", "drop_off"]:
+            if "phi" in action_dict:
+                request_data["phi"] = float(action_dict["phi"])
+
+        if action == "move":
+            if "claw_open" in action_dict:
+                request_data["claw_open"] = int(action_dict["claw_open"])
+            if "roll_angle" in action_dict:
+                request_data["roll_angle"] = float(action_dict["roll_angle"])
+            if "elbow" in action_dict:
+                request_data["elbow"] = action_dict["elbow"]
+
+        print(f"Executing {action.upper()} action...")
+        print(f"Request data: {request_data}")
+
+        # Send the request to the arm control server
+        response = requests.post(
+            f"{arm_server_url}/arm_control", json=request_data, timeout=10
+        )
+
+        if response.status_code != 200:
+            print(f"Action failed: {response.json()}")
+            return False
+
+        print(f"Action response: {response.json()}")
+        print("Arm control completed successfully")
         return True
 
+    except requests.exceptions.ConnectionError:
+        print(
+            f"Error: Could not connect to arm control server. Make sure it's running on {arm_server_url}"
+        )
+        return False
     except Exception as e:
-        print(f"Error in arm control simulation: {e}")
+        print(f"Error in arm control: {e}")
+        return False
+
+
+def check_arm_server(arm_server_url=None):
+    """Check if the arm control server is running"""
+    if arm_server_url is None:
+        arm_server_url = ARM_SERVER_URL
+    try:
+        response = requests.get(f"{arm_server_url}/health", timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            print(f"Arm server status: {data.get('status', 'unknown')}")
+            print(f"Arm ready: {data.get('arm_ready', False)}")
+            return data.get("arm_ready", False)
+        else:
+            print(f"Arm server responded with status {response.status_code}")
+            return False
+    except requests.exceptions.ConnectionError:
+        print(
+            f"Arm server is not running. Please start it with: python arm_control_server.py (URL: {arm_server_url})"
+        )
+        return False
+    except Exception as e:
+        print(f"Error checking arm server: {e}")
         return False
 
 
@@ -198,6 +292,15 @@ def execute_task(user_prompt, camera_id=0):
     print("=" * 60)
     print(f"User Request: {user_prompt}")
     print("=" * 60)
+
+    # Check if arm server is running
+    print("\nChecking arm control server...")
+    if not check_arm_server():
+        print("Warning: Arm server is not ready. Continuing with simulation mode...")
+        print(
+            "To use real arm control, start the server with: python arm_control_server.py"
+        )
+        print("=" * 60)
 
     try:
         # Step 1: Capture image with detection
