@@ -106,21 +106,43 @@ class CompletePipeline:
         red = cv2.morphologyEx(red, cv2.MORPH_OPEN, np.ones((3,3), np.uint8), iterations=1)
         return red
 
+    def _white_mask(self, frame: np.ndarray) -> np.ndarray:
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        # Low saturation, high value
+        lower_white = np.array([0, 0, 200], dtype=np.uint8)
+        upper_white = np.array([180, 50, 255], dtype=np.uint8)
+        white = cv2.inRange(hsv, lower_white, upper_white)
+        white = cv2.morphologyEx(white, cv2.MORPH_CLOSE, np.ones((5,5), np.uint8), iterations=2)
+        white = cv2.morphologyEx(white, cv2.MORPH_OPEN, np.ones((3,3), np.uint8), iterations=1)
+        return white
+
+    def _black_mask(self, frame: np.ndarray) -> np.ndarray:
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        # Very low value (dark)
+        lower_black = np.array([0, 0, 0], dtype=np.uint8)
+        upper_black = np.array([180, 255, 50], dtype=np.uint8)
+        black = cv2.inRange(hsv, lower_black, upper_black)
+        black = cv2.morphologyEx(black, cv2.MORPH_CLOSE, np.ones((5,5), np.uint8), iterations=2)
+        black = cv2.morphologyEx(black, cv2.MORPH_OPEN, np.ones((3,3), np.uint8), iterations=1)
+        return black
+
     def _find_filtered_rects(self, frame: np.ndarray):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         gray = cv2.blur(gray, (3,3))
         canny = cv2.Canny(gray, 100, 200)
         canny = cv2.dilate(canny, np.ones((3,3), np.uint8), iterations=1)
         red = self._red_mask(frame)
-        combo = cv2.bitwise_or(canny, red)
+        white = self._white_mask(frame)
+        black = self._black_mask(frame)
+        combo = cv2.bitwise_or(canny, cv2.bitwise_or(red, cv2.bitwise_or(white, black)))
         contours, _ = cv2.findContours(combo, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         candidates: List[Tuple[int,int,int,int,float]] = []
         for c in contours:
             area = cv2.contourArea(c)
-            if area < 1400:
+            if area < 2000:
                 continue
             x, y, w, h = cv2.boundingRect(c)
-            if w < 26 or h < 26:
+            if w < 30 or h < 30:
                 continue
             rect_area = float(w * h)
             extent = area / (rect_area + 1e-6)
@@ -134,17 +156,23 @@ class CompletePipeline:
             edge_density = float(np.count_nonzero(roi_edges)) / (rect_area + 1e-6)
             roi_red = red[y:y+h, x:x+w]
             red_cov = float(np.count_nonzero(roi_red)) / (rect_area + 1e-6)
-            if extent < 0.17:
+            roi_white = white[y:y+h, x:x+w]
+            white_cov = float(np.count_nonzero(roi_white)) / (rect_area + 1e-6)
+            roi_black = black[y:y+h, x:x+w]
+            black_cov = float(np.count_nonzero(roi_black)) / (rect_area + 1e-6)
+            if extent < 0.20:
                 continue
-            if solidity < 0.33:
+            if solidity < 0.38:
                 continue
-            if ar < 0.20 or ar > 6.0:
+            if ar < 0.25 or ar > 5.0:
                 continue
-            if circularity < 0.035:
+            if circularity < 0.040:
                 continue
-            if edge_density < 0.012 and red_cov < 0.07:
+            # Accept if we have enough edges OR any color/brightness mask coverage (slightly stricter)
+            if edge_density < 0.015 and red_cov < 0.10 and white_cov < 0.10 and black_cov < 0.10:
                 continue
-            score = min(1.0, (area / 30000.0) + 0.7*red_cov + 0.4*edge_density + 0.2*extent)
+            score = (area / 30000.0) + 0.6*red_cov + 0.6*white_cov + 0.6*black_cov + 0.4*edge_density + 0.2*extent
+            score = float(min(1.0, score))
             candidates.append((x, y, w, h, float(score)))
         candidates = self._apply_nms(candidates, 0.35)
         rects = [(x,y,w,h) for (x,y,w,h,_) in candidates]
