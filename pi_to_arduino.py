@@ -149,14 +149,11 @@ def wave_bye(ikSolver, ser):
         time.sleep(0.5)
 
 def shake_yes(ikSolver, ser):
-    ser.write("yaw:0;p1:90;p2:0;p3:60;roll:0;cw:0".encode())
-    time.sleep(1.5)
-    ser.write("yaw:0;p1:90;p2:0;p3:90;roll:0;cw:0".encode())
-    time.sleep(1.5)
-    ser.write("yaw:0;p1:90;p2:0;p3:60;roll:0;cw:0".encode())
-    time.sleep(1.5)
-    ser.write("yaw:0;p1:90;p2:0;p3:90;roll:0;cw:0".encode())
-    time.sleep(1.5)
+    for i in range(6):
+        ser.write("yaw:45;p1:90;p2:0;p3:-60;roll:0;cw:0".encode())
+        time.sleep(0.25)
+        ser.write("yaw:45;p1:90;p2:0;p3:-90;roll:0;cw:0".encode())
+        time.sleep(0.25)
 
 def shake_no(ikSolver, ser):
     for i in range(3):
@@ -167,15 +164,11 @@ def shake_no(ikSolver, ser):
     
 
 def shake_hand(ikSolver, ser):
-    ser.write("yaw:0;p1:45;p2:-45;p3:0;roll:90;cw:0".encode())
-    time.sleep(1.5)
-    ser.write("yaw:0;p1:45;p2:-15;p3:0;roll:90;cw:0".encode())
-    time.sleep(1.5)
-    ser.write("yaw:0;p1:45;p2:-45;p3:0;roll:90;cw:0".encode())
-    time.sleep(1.5)
-    ser.write("yaw:0;p1:45;p2:-15;p3:0;roll:90;cw:0".encode())
-    time.sleep(1.5)
-    
+    for i in range(4):
+        ser.write("yaw:0;p1:45;p2:-15;p3:0;roll:90;cw:0".encode())
+        time.sleep(0.5)
+        ser.write("yaw:0;p1:45;p2:-15;p3:0;roll:90;cw:1".encode())
+        time.sleep(0.5)
 
 def move_to_hold(ikSolver, ser, x, y):
     move(ikSolver, x, y, 10, 0, ser, claw_open=1)
@@ -195,7 +188,7 @@ if __name__ == "__main__":
         #time.sleep(10)
         # wave_bye(ikSolver, ser)
         # time.sleep(10)
-        shake_no(ikSolver, ser)
+        # shake_no(ikSolver, ser)
         # time.sleep(10)
         # shake_yes(ikSolver, ser)
         # time.sleep(10)
