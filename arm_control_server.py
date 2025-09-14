@@ -62,151 +62,62 @@ def validate_coordinates(data):
 
 @app.route("/arm_control", methods=["POST"])
 def arm_control():
-    """
-    Single endpoint for all arm control operations
-    Routes to appropriate function based on action type
-    """
+    """Simple arm control endpoint"""
     global ser, ikSolver, arm_ready
 
-    print(f"Received request from {request.remote_addr}")
-    print(f"Request data: {request.get_json()}")
-
     if not arm_ready:
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": "Arm not initialized. Please check connection.",
-                }
-            ),
-            500,
-        )
+        return jsonify({"success": False, "error": "Arm not ready"}), 500
 
     try:
         data = request.get_json()
-        if not data:
-            return jsonify({"success": False, "error": "No JSON data provided"}), 400
-
         action = data.get("action", "").lower()
 
-        # Route to appropriate function based on action
-        if action == "grab":
-            # grab(ikSolver, x, y, phi, ser, x2, y2)
-            valid, msg = validate_coordinates(data)
-            if not valid:
-                return jsonify({"success": False, "error": msg}), 400
+        print(f"Executing: {action}")
 
+        if action == "grab":
             x = float(data["x"])
             y = float(data["y"])
-            phi = float(data.get("phi", 270))  # Default to 270 for top-down approach
-            x2 = float(data.get("x2", x))  # Default to same position if not provided
-            y2 = float(data.get("y2", y))  # Default to same position if not provided
-
-            print(f"Executing GRAB: x={x}, y={y}, phi={phi}, drop_at=({x2}, {y2})")
+            phi = float(data.get("phi", 270))
+            x2 = float(data.get("x2", x))
+            y2 = float(data.get("y2", y))
             grab(ikSolver, x, y, phi, ser, x2, y2)
 
-        elif action == "move_to_idle":
-            # move_to_idle_position(ikSolver, ser)
-            print("Executing MOVE_TO_IDLE")
-            move_to_idle_position(ikSolver, ser)
-
         elif action == "move":
-            # move(ikSolver, x, y, z, phi, ser, claw_open=1, roll_angle=0, elbow='up')
-            valid, msg = validate_coordinates(data)
-            if not valid:
-                return jsonify({"success": False, "error": msg}), 400
-
             x = float(data["x"])
             y = float(data["y"])
-            z = float(data.get("z", 0))  # Default to 0
-            phi = float(data.get("phi", 0))  # Default to 0
-            claw_open = int(data.get("claw_open", 1))  # Default to open
-            roll_angle = float(data.get("roll_angle", 0))  # Default to 0
-            elbow = data.get("elbow", "up")  # Default to 'up'
-
-            print(
-                f"Executing MOVE: x={x}, y={y}, z={z}, phi={phi}, claw_open={claw_open}, roll_angle={roll_angle}, elbow={elbow}"
-            )
+            z = float(data.get("z", 0))
+            phi = float(data.get("phi", 0))
+            claw_open = int(data.get("claw_open", 1))
+            roll_angle = float(data.get("roll_angle", 0))
+            elbow = data.get("elbow", "up")
             move(ikSolver, x, y, z, phi, ser, claw_open, roll_angle, elbow)
 
         elif action == "wave_bye":
-            # wave_bye(ikSolver, ser)
-            print("Executing WAVE_BYE")
             wave_bye(ikSolver, ser)
 
         elif action == "shake_yes":
-            # shake_yes(ikSolver, ser)
-            print("Executing SHAKE_YES")
             shake_yes(ikSolver, ser)
 
         elif action == "shake_no":
-            # shake_no(ikSolver, ser)
-            print("Executing SHAKE_NO")
             shake_no(ikSolver, ser)
 
         elif action == "shake_hand":
-            # shake_hand(ikSolver, ser)
-            print("Executing SHAKE_HAND")
             shake_hand(ikSolver, ser)
 
-        elif action == "move_to_hold":
-            # move_to_hold(ikSolver, ser, x, y)
-            valid, msg = validate_coordinates(data)
-            if not valid:
-                return jsonify({"success": False, "error": msg}), 400
-
-            x = float(data["x"])
-            y = float(data["y"])
-            print(f"Executing MOVE_TO_HOLD: x={x}, y={y}")
-            move_to_hold(ikSolver, ser, x, y)
-
-        elif action == "hold":
-            # hold(ikSolver, ser, x, y)
-            valid, msg = validate_coordinates(data)
-            if not valid:
-                return jsonify({"success": False, "error": msg}), 400
-
-            x = float(data["x"])
-            y = float(data["y"])
-            print(f"Executing HOLD: x={x}, y={y}")
-            hold(ikSolver, ser, x, y)
-
-        elif action == "drop_off":
-            # drop_off(ikSolver, ser, x, y, z, phi)
-            valid, msg = validate_coordinates(data)
-            if not valid:
-                return jsonify({"success": False, "error": msg}), 400
-
-            x = float(data["x"])
-            y = float(data["y"])
-            z = float(data.get("z", 0))  # Default to 0
-            phi = float(data.get("phi", 0))  # Default to 0
-
-            print(f"Executing DROP_OFF: x={x}, y={y}, z={z}, phi={phi}")
-            drop_off(ikSolver, ser, x, y, z, phi)
+        elif action == "move_to_idle":
+            move_to_idle_position(ikSolver, ser)
 
         else:
             return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": f"Unknown action: {action}. Valid actions: grab, move_to_idle, move, wave_bye, shake_yes, shake_no, shake_hand, move_to_hold, hold, drop_off",
-                    }
-                ),
+                jsonify({"success": False, "error": f"Unknown action: {action}"}),
                 400,
             )
 
-        return jsonify(
-            {
-                "success": True,
-                "message": f"Action {action} executed successfully",
-                "action": action,
-            }
-        )
+        return jsonify({"success": True, "action": action})
 
     except Exception as e:
-        print(f"Error executing arm control: {e}")
-        return jsonify({"success": False, "error": f"Execution error: {str(e)}"}), 500
+        print(f"Error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route("/arm_status", methods=["GET"])
