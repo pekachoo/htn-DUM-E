@@ -84,52 +84,47 @@ def projection(x, y, z):
     
 
 def grab(ikSolver, x, y, phi, ser):
-    t = time.time()
-    while(time.time() - t <= 4):
-        idle_angle = ikSolver.solve(math.sqrt(x**2 + y**2), 10, 300 * math.pi / 180, elbow='up')
-        angles = (get_yaw_angle(x, y),) + idle_angle + (0, 1)  # open claw
-        angles = tuple(int(math.degrees(a)) for a in angles)  # deg
-        sendTargets(angles, ser)
-        time.sleep(0.3)  # wait for arm to reach position
-        
-        #grab
-        down_angle = ikSolver.solve(math.sqrt(x**2 + y**2), -5, phi * math.pi / 180, elbow='up')
-        angles = (get_yaw_angle(x, y),) + down_angle + (0, 1)  # open claw
-        angles = tuple(int(math.degrees(a)) for a in angles)  # deg
-        sendTargets(angles, ser)
-        time.sleep(0.3)  # wait for arm to reach position
-        angles = (get_yaw_angle(x, y),) + down_angle + (0, 0)  # close claw
-        angles = tuple(int(math.degrees(a)) for a in angles)  # deg
-        sendTargets(angles, ser)
-        time.sleep(0.3)  # wait for arm to reach position
+    idle_angle = ikSolver.solve(math.sqrt(x**2 + y**2), 10, 300 * math.pi / 180, elbow='up')
+    angles = (get_yaw_angle(x, y),) + idle_angle + (0, 1)  # open claw
+    angles = tuple(int(math.degrees(a)) for a in angles)  # deg
+    sendTargets(angles, ser)
+    time.sleep(0.3)  # wait for arm to reach position
+    
+    #grab
+    down_angle = ikSolver.solve(math.sqrt(x**2 + y**2), -5, phi * math.pi / 180, elbow='up')
+    angles = (get_yaw_angle(x, y),) + down_angle + (0, 1)  # open claw
+    angles = tuple(int(math.degrees(a)) for a in angles)  # deg
+    sendTargets(angles, ser)
+    time.sleep(0.3)  # wait for arm to reach position
+    angles = (get_yaw_angle(x, y),) + down_angle + (0, 0)  # close claw
+    angles = tuple(int(math.degrees(a)) for a in angles)  # deg
+    sendTargets(angles, ser)
+    time.sleep(0.3)  # wait for arm to reach position
 
-        #lift
-        angles = (get_yaw_angle(x, y),) + idle_angle + (0, 0)  # close claw
-        angles = tuple(int(math.degrees(a)) for a in angles)  # deg
-        sendTargets(angles, ser)
-        time.sleep(0.3)  # wait for arm to reach position
-        break
+    #lift
+    angles = (get_yaw_angle(x, y),) + idle_angle + (0, 0)  # close claw
+    angles = tuple(int(math.degrees(a)) for a in angles)  # deg
+    sendTargets(angles, ser)
+    time.sleep(0.3)  # wait for arm to reach position
 
 def move_to_idle_position(ikSolver, ser):
     # SETTING TARGETS
     x, y, z = 4, 4, 22  # cm
     phi = 0 * math.pi / 180
-    roll_angle, claw_open = 0, 1 
+    roll_angle, claw_open = 0, 1
 
     # Calculate angles
     x_target, y_target = projection(x, y, z)
     pitch_angles = ikSolver.solve(x_target, y_target, phi, elbow='up')
     angles = (get_yaw_angle(x, y),) + pitch_angles + (roll_angle, claw_open)
     angles = tuple(int(math.degrees(a)) for a in angles)  # convert to degrees
-    # sendTargets(angles, uno, master)
     print(angles)
     sendTargets(angles, ser)
     print("a")
 
-    time.sleep(3)  # Control update rate
+    time.sleep(0.1)  # Control update rate
 
-def move(ikSolver, x, y, z, phi, ser, claw_open=1, roll_angle=0, time_duration=2, elbow='up'):
-    t = time.time()
+def move(ikSolver, x, y, z, phi, ser, claw_open=1, roll_angle=0, elbow='up'):
     # Calculate angles
     x_target, y_target = projection(x, y, z)
     pitch_angles = ikSolver.solve(x_target, y_target, phi, elbow=elbow)
@@ -142,79 +137,73 @@ def move(ikSolver, x, y, z, phi, ser, claw_open=1, roll_angle=0, time_duration=2
 def wave_bye(ikSolver, ser):
     """Go to idle position, open claw, wave by oscillating L2 6 times"""
     move_to_idle_position(ikSolver, ser)
-    time.sleep(2)
+    time.sleep(1)
     for _ in range(3):
-        move(ikSolver, -4, 0, 22, 135 * math.pi / 180, ser, claw_open=1, time_duration=1.5, roll_angle=90)
-        move(ikSolver, 4, 0, 22, 45 * math.pi / 180, ser, claw_open=1, time_duration=1.5, roll_angle=90)
+        move(ikSolver, -4, 0, 22, 135 * math.pi / 180, ser, claw_open=1, roll_angle=90 / 180 * math.pi)
+        time.sleep(0.3)
+        move(ikSolver, 4, 0, 22, 45 * math.pi / 180, ser, claw_open=1, roll_angle=90 / 180 * math.pi)
+        time.sleep(0.3)
 
 def shake_no(ikSolver, ser):
-    t=time.time()
     move_to_idle_position(ikSolver, ser)
-    time.sleep(0.3)
-    move(ikSolver, 0, 0, 22, 90, ser, claw_open=1, roll_angle=45, time_duration=1)
-    time.sleep(0.3)
-    move(ikSolver, 0, 0, 22, 90, ser, claw_open=1, roll_angle=135, time_duration=1)
-    time.sleep(0.3)
-    move(ikSolver, 0, 0, 22, 90, ser, claw_open=1, roll_angle=45, time_duration=1)
-    time.sleep(0.3)
-    move(ikSolver, 0, 0, 22, 90, ser, claw_open=1, roll_angle=135, time_duration=1)
-    time.sleep(0.3)
+    time.sleep(1)
+    move(ikSolver, 0, 0, 20, 270, ser, claw_open=1, roll_angle=145 / 180 * math.pi)
+    time.sleep(1)
+    move(ikSolver, 0, 0, 20, 270, ser, claw_open=1, roll_angle=225 / 180 * math.pi)
+    time.sleep(1)
+    move(ikSolver, 0, 0, 20, 270, ser, claw_open=1, roll_angle=135/ 180 * math.pi)
+    time.sleep(1)
+    move(ikSolver, 0, 0, 20, 270, ser, claw_open=1, roll_angle=225 / 180 * math.pi)
+    time.sleep(1)
 
 def shake_yes(ikSolver, ser):
-    t=time.time()
-    while(time.time() - t <= 5):
-        move_to_idle_position(ikSolver, ser)
-        time.sleep(0.3)
-        move(ikSolver, 0, 0, 22, 90, ser, claw_open=1, time_duration=1)
-        time.sleep(0.3)
-        move(ikSolver, 0, 0, 22, 180, ser, claw_open=1, time_duration=1)
-        time.sleep(0.3)
-        move(ikSolver, 0, 0, 22, 90, ser, claw_open=1, time_duration=1)
-        time.sleep(0.3)
-        move(ikSolver, 0, 0, 22, 180, ser, claw_open=1, time_duration=1)
-        time.sleep(0.3)
+    move_to_idle_position(ikSolver, ser)
+    time.sleep(0.3)
+    move(ikSolver, 0, 0, 22, 90, ser, claw_open=1)
+    time.sleep(0.3)
+    move(ikSolver, 0, 0, 22, 180, ser, claw_open=1)
+    time.sleep(0.3)
+    move(ikSolver, 0, 0, 22, 90, ser, claw_open=1)
+    time.sleep(0.3)
+    move(ikSolver, 0, 0, 22, 180, ser, claw_open=1)
+    time.sleep(0.3)
 
 def shake_hand(ikSolver, ser):
-    t=time.time()
-    while(time.time() - t <= 5):
-        move_to_idle_position(ikSolver, ser)
-        time.sleep(0.3)
-        move(ikSolver, 0, 15, 10, 0, ser, claw_open=1, roll_angle=90, time_duration=1)
-        time.sleep(2)
-        move(ikSolver, 0, 15, 12, 0, ser, claw_open=1, roll_angle=90, time_duration=1)
-        time.sleep(2)
-        move(ikSolver, 0, 15, 10, 0, ser, claw_open=1, roll_angle=90, time_duration=1)
-        time.sleep(2)
-        move(ikSolver, 0, 15, 12, 0, ser, claw_open=1, roll_angle=90, time_duration=1)
-        time.sleep(2)
-        move(ikSolver, 0, 15, 10, 0, ser, claw_open=1, roll_angle=90, time_duration=1)
+    ser.write("yaw:0;p1:45;p2:-45;p3:0;roll:90;cw:0".encode())
+    time.sleep(1.5)
+    ser.write("yaw:0;p1:45;p2:-15;p3:0;roll:90;cw:0".encode())
+    time.sleep(1.5)
+    ser.write("yaw:0;p1:45;p2:-45;p3:0;roll:90;cw:0".encode())
+    time.sleep(1.5)
+    ser.write("yaw:0;p1:45;p2:-15;p3:0;roll:90;cw:0".encode())
+    time.sleep(1.5)
+    
 
 def hold(ikSolver):
-    t=time.time()
-    while(time.time() - t <= 1):
-        move_to_idle_position(ikSolver)
-        move(ikSolver, 4, 4, 22, 0, ser, claw_open=1, time_duration=1)
-        time.sleep(5)
-        move(ikSolver, 4, 4, 22, 0, ser, claw_open=0, time_duration=1)
-        time.sleep(2)
+    move_to_idle_position(ikSolver)
+    move(ikSolver, 4, 4, 22, 0, ser, claw_open=1)
+    time.sleep(5)
+    move(ikSolver, 4, 4, 22, 0, ser, claw_open=0)
+    time.sleep(2)
 
 
 if __name__ == "__main__":
-    ser = serial.Serial("/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0",  9600, timeout=5)
+    ser = serial.Serial("/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0",  9600, timeout=1)
     ikSolver = IKSolver(P1=12.0, P2=12.3, P3=8.0)
+    time.sleep(3)
 
     try:
         # wave_bye(ikSolver, ser)
-        move_to_idle_position(ikSolver, ser)
+        #move_to_idle_position(ikSolver, ser)
         #grab(ikSolver, 10.88, 12.30, 270, ser)
         #time.sleep(10)
-        # wave_bye(ikSolver, ser)
+        #wave_bye(ikSolver, ser)
         # time.sleep(10)
-        #shake_no(ikSolver, ser)
+        # shake_no(ikSolver, ser)
         # time.sleep(10)
         # shake_yes(ikSolver, ser)
         # time.sleep(10)
-        # shake_hand(ikSolver, ser)
+        shake_hand(ikSolver, ser)
 
     except KeyboardInterrupt:
         print("Stopped by user.")
