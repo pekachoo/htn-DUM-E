@@ -63,8 +63,8 @@ def parse_groq_response(response_text):
         return None
 
 
-def analyze_with_groq(image_path, user_prompt, detections):
-    """analyze image with groq and return coordinate dictionary (lenient, multi-object, human-like)"""
+def analyze_with_groq(image_path, user_prompt, detections, hand_cm=None):
+    """Analyze image with Groq and return coordinate dictionary (lenient, multi-object, human-like)"""
     try:
         base64_image = encode_image(image_path)
         client = Groq(api_key=os.environ.get("groq_api_key"))
@@ -81,12 +81,18 @@ def analyze_with_groq(image_path, user_prompt, detections):
         else:
             detection_text = "no objects detected"
 
-        # simple prompt
+        # Add hand coordinate context if available
+        if hand_cm is not None:
+            hand_text = f"\nHAND POSITION (cm): ({hand_cm[0]:.2f}, {hand_cm[1]:.2f})"
+        else:
+            hand_text = "\nHAND POSITION: None"
+
+        # Simple prompt
         prompt_text = f"""
 you are dum-e, a robotic arm. look at the image and do what the user asks.
 
-user request: {user_prompt}
-detected objects: {detection_text}
+USER REQUEST: {user_prompt}
+DETECTED OBJECTS: {detection_text}{hand_text}
 
 coordinate system: x=0-30cm (left-right), y=0-30cm (front-back), z=0 (table level)
 
@@ -390,16 +396,16 @@ def execute_task(user_prompt, camera_id=0):
     print("=" * 60)
 
     try:
-        # step 1: capture image
-        print("capturing image...")
-        image_path, detections = capture_with_detection(camera_id)
+        # Step 1: Capture image
+        print("Capturing image...")
+        image_path, detections, hand_cm = capture_with_detection(camera_id)
         if image_path is None:
             print("failed to capture image")
             return False
 
-        # step 2: analyze with llm
-        print("analyzing with llm...")
-        action_dict = analyze_with_groq(image_path, user_prompt, detections)
+        # Step 2: Analyze with LLM
+        print("Analyzing with LLM...")
+        action_dict = analyze_with_groq(image_path, user_prompt, detections, hand_cm)
         if action_dict is None:
             print("failed to get action from llm")
             return False

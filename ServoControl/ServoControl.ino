@@ -41,7 +41,7 @@ struct ServoAngles {
 
 struct ServoAngles IK_to_servo_angles(float yaw, float p1, float p2, float p3, float roll, float claw) {
   // yaw
-  yaw = -0.6556f * yaw + 110.0f;
+  yaw = -0.756f * yaw + 117.0f;
 
   // p1 restraints
   if (p1 > -90 && p1 < -35) {
@@ -95,7 +95,7 @@ void setServoPositions(int yaw, int p1, int p2, int p3, int roll_pos, int claw) 
 void setup() {
   // Attach each servo to its pin
   Serial.begin(9600);
-  Serial.setTimeout(5);
+  Serial.setTimeout(5); 
   servoYaw.attach(YAW_PIN);
   servoPitch1.attach(PITCH1_PIN);
   servoPitch2.attach(PITCH2_PIN);

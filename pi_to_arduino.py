@@ -184,9 +184,9 @@ if __name__ == "__main__":
     try:
         # wave_bye(ikSolver, ser)
         # move_to_idle_position(ikSolver, ser)
-        #grab(ikSolver, 10.88, 12.30, 270, ser)
+        grab(ikSolver, 9.5, 13.95, 270, ser, 15, 15)
         #time.sleep(10)
-        wave_bye(ikSolver, ser)
+        # wave_bye(ikSolver, ser)
         # time.sleep(10)
         # shake_no(ikSolver, ser)
         # time.sleep(10)
