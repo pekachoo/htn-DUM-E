@@ -5,7 +5,6 @@ Provides a single endpoint that routes to appropriate arm functions based on act
 """
 
 from flask import Flask, request, jsonify
-from flask_cors import CORS
 import serial
 import time
 import math
@@ -25,7 +24,6 @@ from pi_to_arduino import (
 )
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
 
 # Global variables for arm control
 ser = None
