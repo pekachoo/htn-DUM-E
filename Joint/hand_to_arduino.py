@@ -13,6 +13,7 @@ if CURRENT_DIR not in sys.path:
 from hand_detection import HandRobotController
 
 
+
 def open_serial_port(preferred_ports, baudrate=115200, timeout=0.05):
     for port in preferred_ports:
         try:
