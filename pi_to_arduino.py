@@ -202,13 +202,6 @@ def hold(ikSolver):
         move(ikSolver, 4, 4, 22, 0, ser, claw_open=0, time_duration=1)
         time.sleep(2)
 
-def bow(ikSolver):
-    t=time.time()
-    while(time.time() - t <= 1):
-        move_to_idle_position(ikSolver)
-        time.sleep(1.5)
-        move(ikSolver, 0, 15, 10, 0,ser, claw_open=0, time_duration=1)
-        time.sleep(2)
 
 if __name__ == "__main__":
     ser = serial.Serial("/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0",  9600, timeout=5)
