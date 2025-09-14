@@ -88,24 +88,24 @@ def grab(ikSolver, x, y, phi, ser, x2, y2):
     angles = (get_yaw_angle(x, y),) + idle_angle + (0, 1)  # open claw
     angles = tuple(int(math.degrees(a)) for a in angles)  # deg
     sendTargets(angles, ser)
-    time.sleep(0.3)  # wait for arm to reach position
+    time.sleep(1)  # wait for arm to reach position
     
     #grab
     down_angle = ikSolver.solve(math.sqrt(x**2 + y**2), -5, phi * math.pi / 180, elbow='up')
     angles = (get_yaw_angle(x, y),) + down_angle + (0, 1)  # open claw
     angles = tuple(int(math.degrees(a)) for a in angles)  # deg
     sendTargets(angles, ser)
-    time.sleep(0.3)  # wait for arm to reach position
+    time.sleep(1)  # wait for arm to reach position
     angles = (get_yaw_angle(x, y),) + down_angle + (0, 0)  # close claw
     angles = tuple(int(math.degrees(a)) for a in angles)  # deg
     sendTargets(angles, ser)
-    time.sleep(0.3)  # wait for arm to reach position
+    time.sleep(1)  # wait for arm to reach position
 
     #lift
     angles = (get_yaw_angle(x, y),) + idle_angle + (0, 0)  # close claw
     angles = tuple(int(math.degrees(a)) for a in angles)  # deg
     sendTargets(angles, ser)
-    time.sleep(0.3)  # wait for arm to reach position
+    time.sleep(3)  # wait for arm to reach position
 
     #DROP OFF
     move(ikSolver, x2, y2, 0, phi, ser, claw_open=0)
@@ -194,7 +194,7 @@ if __name__ == "__main__":
 
     try:
         # wave_bye(ikSolver, ser)
-        #move_to_idle_position(ikSolver, ser)
+        move_to_idle_position(ikSolver, ser)
         #grab(ikSolver, 10.88, 12.30, 270, ser)
         #time.sleep(10)
         #wave_bye(ikSolver, ser)
@@ -205,7 +205,8 @@ if __name__ == "__main__":
         # time.sleep(10)
         # shake_hand(ikSolver, ser)
         # shake_no(ikSolver, ser)
-        shake_yes(ikSolver, ser)
+        # shake_yes(ikSolver, ser)'
+        grab(ikSolver, 14.40, 14.90, 270, ser, 0, 20)
 
     except KeyboardInterrupt:
         print("Stopped by user.")
