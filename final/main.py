@@ -101,7 +101,6 @@ available actions:
 - "grab": pick up object at (x,y) and move to (x2,y2) - use phi=270 for top-down
 - "move": move to (x,y,z) with orientation
 - "move_to_hold": move to hold position at (x,y)
-- "hold": hold at position (x,y)
 - "wave_bye": wave goodbye
 - "shake_yes": nod yes  
 - "shake_no": shake no
