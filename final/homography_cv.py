@@ -4,8 +4,32 @@ import argparse
 import os
 from typing import List, Tuple, Optional
 from collections import deque
+import mediapipe as mp
+
+mp_hands = mp.solutions.hands
+mp_draw = mp.solutions.drawing_utils
+hands_detector = mp_hands.Hands(static_image_mode=False,
+                                max_num_hands=1,
+                                min_detection_confidence=0.5,
+                                min_tracking_confidence=0.5)
 
 class CompletePipeline:
+    def detect_hand(self, frame: np.ndarray) -> Optional[Tuple[int,int]]:
+        """
+        Detects hand and returns the wrist/palm center (pixel coordinates)
+        """
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = hands_detector.process(rgb)
+        if results.multi_hand_landmarks:
+            hand_landmarks = results.multi_hand_landmarks[0]
+            h, w, _ = frame.shape
+            # Use wrist (landmark 0) as center
+            cx = int(hand_landmarks.landmark[0].x * w)
+            cy = int(hand_landmarks.landmark[0].y * h)
+            # Draw hand landmarks
+            mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+            return cx, cy
+        return None
     def __init__(self, src_points=None, dst_points=None):
         self.src_points = src_points or np.array([
             [567, 112], #topleft
@@ -153,6 +177,37 @@ class CompletePipeline:
             out.append((i+1, cx_cm, cy_cm))  # These are in cm, with y flipped
         return out
 
+    def pixel_to_warped(self, x: int, y: int) -> Tuple[float, float]:
+        """
+        Map a pixel coordinate from the original frame to the warped (homography) space.
+        Returns subpixel-precision (x, y) in the 400x400 warped image.
+        """
+        pts = np.array([[[float(x), float(y)]]], dtype=np.float32)
+        warped = cv2.perspectiveTransform(pts, self.H)
+        return float(warped[0, 0, 0]), float(warped[0, 0, 1])
+
+    def warped_to_cm(self, x_warped: float, y_warped: float) -> Tuple[float, float]:
+        """
+        Convert warped 400x400 coordinates into centimeters with y flipped.
+        """
+        cx_cm = (x_warped * 30.0) / 400.0
+        cy_cm = ((400.0 - y_warped) * 30.0) / 400.0
+        return cx_cm, cy_cm
+
+    def get_hand_in_cm(self, frame: np.ndarray) -> Optional[Tuple[Tuple[int, int], Tuple[float, float], Tuple[float, float]]]:
+        """
+        Detect the hand in the original frame and return:
+        ((hx, hy) in pixels, (wx, wy) in warped coords, (x_cm, y_cm) in centimeters)
+        Returns None if no hand is detected.
+        """
+        center = self.detect_hand(frame)
+        if center is None:
+            return None
+        hx, hy = center
+        wx, wy = self.pixel_to_warped(hx, hy)
+        x_cm, y_cm = self.warped_to_cm(wx, wy)
+        return (hx, hy), (wx, wy), (x_cm, y_cm)
+
     def save_centers(self, centers: List[Tuple[int,float,float]], path: str = "pipeline_output/centers.txt"):
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as f:
@@ -190,6 +245,11 @@ class CompletePipeline:
                     if not cap.isOpened():
                         break
                 continue
+            hand_center = self.detect_hand(frame)
+            if hand_center:
+                hx, hy = hand_center
+                cv2.circle(frame, (hx, hy), 8, (255, 0, 0), -1)
+                print(f"Hand detected at pixel: ({hx}, {hy})")
             consecutive_failures = 0
             frame_count += 1
             warped = cv2.warpPerspective(frame, self.H, (400, 400))

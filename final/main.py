@@ -60,7 +60,7 @@ def parse_groq_response(response_text):
         return None
 
 
-def analyze_with_groq(image_path, user_prompt, detections):
+def analyze_with_groq(image_path, user_prompt, detections, hand_cm=None):
     """Analyze image with Groq and return coordinate dictionary (lenient, multi-object, human-like)"""
     try:
         base64_image = encode_image(image_path)
@@ -78,12 +78,18 @@ def analyze_with_groq(image_path, user_prompt, detections):
         else:
             detection_text = "No objects detected"
 
+        # Add hand coordinate context if available
+        if hand_cm is not None:
+            hand_text = f"\nHAND POSITION (cm): ({hand_cm[0]:.2f}, {hand_cm[1]:.2f})"
+        else:
+            hand_text = "\nHAND POSITION: None"
+
         # Simple prompt
         prompt_text = f"""
 You are DUM-E, a robotic arm. Look at the image and do what the user asks.
 
 USER REQUEST: {user_prompt}
-DETECTED OBJECTS: {detection_text}
+DETECTED OBJECTS: {detection_text}{hand_text}
 
 COORDINATE SYSTEM: X=0-30cm (left-right), Y=0-30cm (front-back), Z=0 (table level)
 
@@ -377,14 +383,14 @@ def execute_task(user_prompt, camera_id=0):
     try:
         # Step 1: Capture image
         print("Capturing image...")
-        image_path, detections = capture_with_detection(camera_id)
+        image_path, detections, hand_cm = capture_with_detection(camera_id)
         if image_path is None:
             print("Failed to capture image")
             return False
 
         # Step 2: Analyze with LLM
         print("Analyzing with LLM...")
-        action_dict = analyze_with_groq(image_path, user_prompt, detections)
+        action_dict = analyze_with_groq(image_path, user_prompt, detections, hand_cm)
         if action_dict is None:
             print("Failed to get action from LLM")
             return False
