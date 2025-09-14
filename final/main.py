@@ -96,14 +96,13 @@ coordinate system: x=0-30cm (left-right), y=0-30cm (front-back), z=0 (table leve
 available actions:
 - "grab": pick up object at (x,y) and move to (x2,y2) - use phi=270 for top-down. 
   grab --> for moving objects
-- "move": move to (x,y,z) with orientation
 - "move_to_hold": move to hold position at (x,y)
   move to hold --> for asking it to hold things for us in place. it just helps to clarify to the DUM-E arm what we want out of it
 - "wave_bye": wave goodbye
 - "shake_yes": nod yes  
 - "shake_no": shake no
 - "shake_hand": handshake
-  handshaek --> for handshaekes
+  handshake --> for handshaekes
 - "move_to_idle": go to safe position
 
 Do just one action at a time. If there are multiple things to do, just do the next one that makes sense (don't repeat the same one over and over). Be lenient and don't be too strict. For example, if you have to move something, if its approx in the desired area then you are good. No need to be perfect for cords.
