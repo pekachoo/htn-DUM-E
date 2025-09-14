@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
-Simplified DUM-E robotic arm system
-Takes CLI prompt, captures image with detection, sends to Groq, loops until task complete
+DUM-E robotic arm system (lenient, multi-object, human-like)
+Takes CLI prompt, captures image with detection, sends to Groq, loops until task complete.
+If there are multiple things to do, just do the next one that makes sense (don't repeat the same one over and over).
+Be lenient: if it looks good enough, call it done!
 """
 
 import sys
@@ -25,7 +27,7 @@ def encode_image(image_path):
 def parse_groq_response(response_text):
     """Parse Groq response to extract coordinate dictionary"""
     try:
-        # Look for JSON in the response
+        # Try to find a JSON object in the response
         lines = response_text.split("\n")
         for line in lines:
             line = line.strip()
@@ -35,7 +37,7 @@ def parse_groq_response(response_text):
                 except json.JSONDecodeError:
                     continue
 
-        # If no JSON found, try to extract from the entire response
+        # Fallback: try to extract JSON from the whole response
         if "{" in response_text and "}" in response_text:
             start = response_text.find("{")
             end = response_text.rfind("}") + 1
@@ -51,16 +53,12 @@ def parse_groq_response(response_text):
 
 
 def analyze_with_groq(image_path, user_prompt, detections):
-    """Analyze image with Groq and return coordinate dictionary"""
+    """Analyze image with Groq and return coordinate dictionary (lenient, multi-object, human-like)"""
     try:
-        # Encode the image
         base64_image = encode_image(image_path)
-
-        # Create the client
         client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
-        # Format detections for context - these are already in CM coordinates from homography_cv.py
-        detection_text = ""
+        # Format detections for context
         if detections:
             detection_strings = [
                 f"Object {obj_num}: ({x:.2f}cm, {y:.2f}cm)"
@@ -72,7 +70,7 @@ def analyze_with_groq(image_path, user_prompt, detections):
         else:
             detection_text = "No objects detected"
 
-        # Moderately flexible prompt for coordinate-based actions
+        # Prompt: lenient, multi-object, do the next thing, don't repeat, just eyeball it
         prompt_text = f"""
 You are DUM-E, a robotic arm assistant. Your job is to analyze the image and context, and figure out the next coordinates and actions needed to complete the user's request.
 
@@ -80,12 +78,13 @@ USER REQUEST (text): {user_prompt}
 DETECTION CONTEXT (text): {detection_text}
 
 INSTRUCTIONS:
-- You have access to both the image and the provided coordinates/context. Use both!
-- When the user gives instructions like "move to the top right" or similar, interpret these in a human way: "top right" means the top right quadrant or general area, not just the very corner. Don't be overly strict about exact positions—think about how a person would describe it, and if the object is in the general area, that's usually good enough.
-- However, do not be too lenient: if the object is clearly not in the intended area, the task is not complete. Use reasonable judgment.
+- If there are multiple things to do (like multiple objects), just do the next one you think is needed. Don't keep doing the same one over and over. Just eyeball it by seeing the picture.
+- Be lenient: if the object is anywhere close to the intended area or quadrant, and it looks "about right" or "good enough", then the task is complete. Don't require precision—if it looks like the goal is basically achieved, set "task_complete": true and explain in "task_description".
+- If the user request is ambiguous or already satisfied, or if the objects are already in a reasonable position, mark the task as complete.
 - If you are on a later step and can infer what happened before (even if you didn't see the first request), use your best judgment based on the current image and context.
 - The computer vision system has already detected and localized all objects for you. You do NOT need to do any image analysis or object detection yourself, but you should use the image to help you decide if the task is done or if the object is in the right place.
 - Decide what the arm should do next, one action at a time, until the task is complete. After each action, a new image and updated context will be provided.
+- If the user wants multiple objects moved, do them one by one, but don't just keep doing the same one. Pick the next one that makes sense.
 - If the object is in the general area or quadrant described by the user (for example, "top right" means the upper right quarter of the workspace), and it looks "good enough" or "about right", then the task is complete. Do not require precision—if it looks like the goal is basically achieved, set "task_complete": true and explain in "task_description".
 - If the user request is ambiguous or already satisfied, or if the objects are already in a reasonable position, mark the task as complete.
 
@@ -94,7 +93,7 @@ IMPORTANT:
 - Do NOT output any step-by-step thinking or commentary.
 - If the task is already complete or cannot be performed, set "task_complete": true and provide an explanation in the "task_description" or "error" field.
 - If you do not understand the request, respond with: {{"task_complete": true, "error": "Cannot understand request"}}
-- Be flexible and human-like in your interpretation, but not careless: if the object is in the general area the user described, that's good enough. If it's clearly not, the task is not complete.
+- Be flexible and human-like in your interpretation, and err on the side of considering the task complete if the object is anywhere close to the area the user described. Only if the object is clearly far from the intended area should the task be considered incomplete.
 
 COORDINATE SYSTEM (IMPORTANT!):
 - X: left/right (0 = far left, 30 = far right), in centimeters (cm)
@@ -120,7 +119,8 @@ RESPONSE FORMAT (JSON as plain text only, no markdown, no code block, no explana
 REMEMBER:
 - Only output valid JSON as plain text in the specified format.
 - Do not include any explanation, reasoning, or extra text.
-- Be flexible and human-like: If the object is in the general area/quadrant the user described, that's good enough. If it's clearly not, the task is not complete.
+- Be lenient and human-like: If the object is anywhere close to the general area/quadrant the user described, that's good enough and the task is complete. Only if it's clearly far from the intended area should the task be considered incomplete.
+- If there are multiple things to do, do the next one that makes sense (don't just keep doing the same one).
 - All coordinates must be in centimeters (cm), and avoid using values near 0 or 30 for X and Y (stay between 2 and 28).
 - Z should always be 0.
 - You don't need to be accurate—close enough is good enough!
@@ -140,7 +140,7 @@ REMEMBER:
                         {
                             "type": "image_url",
                             "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}",
+                                "url": f"data:image/jpeg;base64f,{base64_image}",
                             },
                         },
                     ],
@@ -192,7 +192,7 @@ def send_to_arm_control(coordinate_dict):
 
 
 def execute_task(user_prompt, camera_id=0):
-    """Main function to execute a complete arm task"""
+    """Main function to execute a complete arm task (lenient, multi-object, human-like)"""
     print("=" * 60)
     print("DUM-E Robotic Arm System")
     print("=" * 60)
@@ -244,8 +244,8 @@ def execute_task(user_prompt, camera_id=0):
                 print("Task completed successfully!")
                 break
 
-            # Wait a bit before next iteration
-            time.sleep(20)
+            # Wait a bit before next iteration (shorter wait for demo)
+            time.sleep(3)
 
             # Re-analyze if task is not complete
             if not task_complete and iteration < max_iterations:
