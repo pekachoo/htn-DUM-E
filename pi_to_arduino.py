@@ -142,7 +142,7 @@ def move(ikSolver, x, y, z, phi, ser, claw_open=1, roll_angle=0, elbow='up'):
     sendTargets(angles, ser)
 
 def wave_bye(ikSolver, ser):
-    for i in range(5):
+    for i in range(3):
         ser.write("yaw:90;p1:90;p2:45;p3:0;roll:90;cw:1".encode())
         time.sleep(0.5)
         ser.write("yaw:90;p1:90;p2:-45;p3:0;roll:90;cw:1".encode())
