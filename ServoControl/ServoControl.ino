@@ -16,10 +16,17 @@ const int PITCH3_PIN = 9;
 const int ROLL_PIN = 10;
 const int CLAW_PIN = 11;
 
+float targetYaw = 0;
+float targetPitch1 = 0;
+float targetPitch2 = 0;
+float targetPitch3 = 0;
+float targetRoll = 0;
+float targetClaw = 0;
+
 void deserializeAndSetServos(String data) {
   // Expected format: "yaw:30;p1:15;p2:30;p3:45;roll:30;claw:40"
   int yaw, p1, p2, p3, roll_pos, claw;
-  sscanf(data.c_str(), "yaw:%d;p1:%d;p2:%d;p3:%d;roll:%d;claw:%d", &yaw, &p1, &p2, &p3, &roll_pos, &claw);
+  sscanf(data.c_str(), "yaw:%d;p1:%d;p2:%d;p3:%d;roll:%d;cw:%d", &yaw, &p1, &p2, &p3, &roll_pos, &claw);
   setServoPositions(yaw, p1, p2, p3, roll_pos, claw);
 }
 
@@ -88,6 +95,7 @@ void setServoPositions(int yaw, int p1, int p2, int p3, int roll_pos, int claw) 
 
 void setup() {
   // Attach each servo to its pin
+  Serial.begin(9600);
   servoYaw.attach(YAW_PIN);
   servoPitch1.attach(PITCH1_PIN);
   servoPitch2.attach(PITCH2_PIN);
@@ -97,50 +105,46 @@ void setup() {
 }
 
 void loop() {
-
   if (Serial.available()) {
-    String line = Serial.readStringUntil('\n');
-    if (Serial.available()) {
-    String line = Serial.readStringUntil('\n');
-    line.trim();   // remove CR/LF or spaces
+  String line = Serial.readStringUntil('\n');
+  line.trim();   // remove CR/LF or spaces
 
-    // Find the indexes of every field
-    int idx_yaw  = line.indexOf("yaw:");
-    int idx_p1   = line.indexOf("p1:");
-    int idx_p2   = line.indexOf("p2:");
-    int idx_p3   = line.indexOf("p3:");
-    int idx_roll = line.indexOf("roll:");
-    int idx_cw   = line.indexOf("cw:");
+  // Find the indexes of every field
+  int idx_yaw  = line.indexOf("yaw:");
+  int idx_p1   = line.indexOf("p1:");
+  int idx_p2   = line.indexOf("p2:");
+  int idx_p3   = line.indexOf("p3:");
+  int idx_roll = line.indexOf("roll:");
+  int idx_cw   = line.indexOf("cw:");
 
-    if (idx_yaw >= 0) {
-        String s = line.substring(idx_yaw + 4, line.indexOf(';', idx_yaw));
-        targetYaw = s.toFloat();
-      }
+  if (idx_yaw >= 0) {
+      String s = line.substring(idx_yaw + 4, line.indexOf(';', idx_yaw));
+      targetYaw = s.toFloat();
+    }
 
-    if (idx_p1 >= 0) {
-        String s = line.substring(idx_p1 + 3, line.indexOf(';', idx_p1));
-        targetPitch1 = s.toFloat();
-      }
+  if (idx_p1 >= 0) {
+      String s = line.substring(idx_p1 + 3, line.indexOf(';', idx_p1));
+      targetPitch1 = s.toFloat();
+    }
 
-    if (idx_p2 >= 0) {
-        String s = line.substring(idx_p2 + 3, line.indexOf(';', idx_p2));
-        targetPitch2 = s.toFloat();
-      }
+  if (idx_p2 >= 0) {
+      String s = line.substring(idx_p2 + 3, line.indexOf(';', idx_p2));
+      targetPitch2 = s.toFloat();
+    }
 
-    if (idx_p3 >= 0) {
-        String s = line.substring(idx_p3 + 3, line.indexOf(';', idx_p3));
-        targetPitch3 = s.toFloat();
-      }
+  if (idx_p3 >= 0) {
+      String s = line.substring(idx_p3 + 3, line.indexOf(';', idx_p3));
+      targetPitch3 = s.toFloat();
+    }
 
-    if (idx_roll >= 0) {
-        String s = line.substring(idx_roll + 5, line.indexOf(';', idx_roll));
-        targetRoll = s.toFloat();
-      }
+  if (idx_roll >= 0) {
+      String s = line.substring(idx_roll + 5, line.indexOf(';', idx_roll));
+      targetRoll = s.toFloat();
+    }
 
-    if (idx_cw >= 0) {
-        String s = line.substring(idx_cw + 3, line.indexOf(';', idx_cw));
-        targetClaw = s.toFloat();
-      }
+  if (idx_cw >= 0) {
+      String s = line.substring(idx_cw + 3, line.indexOf(';', idx_cw));
+      targetClaw = s.toFloat();
     }
   }
   struct ServoAngles result = IK_to_servo_angles(targetYaw, targetPitch1, targetPitch2, targetPitch3, targetRoll, targetClaw);  // yaw, p1, p2, p3, roll, claw
