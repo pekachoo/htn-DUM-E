@@ -84,7 +84,7 @@ def projection(x, y, z):
     
 
 def grab(ikSolver, x, y, phi, ser, x2, y2):
-    x += 2
+    x += 1
     y -= 3
     idle_angle = ikSolver.solve(math.sqrt(x**2 + y**2), 5, 300 * math.pi / 180, elbow='up')
     angles = (get_yaw_angle(x, y),) + idle_angle + (0, 1)  # open claw
@@ -93,7 +93,7 @@ def grab(ikSolver, x, y, phi, ser, x2, y2):
     time.sleep(1)  # wait for arm to reach position
     
     #grab
-    down_angle = ikSolver.solve(math.sqrt(x**2 + y**2), -5, phi * math.pi / 180, elbow='up')
+    down_angle = ikSolver.solve(math.sqrt(x**2 + y**2), -4, phi * math.pi / 180, elbow='up')
     angles = (get_yaw_angle(x, y),) + down_angle + (0, 1)  # open claw
     angles = tuple(int(math.degrees(a)) for a in angles)  # deg
     sendTargets(angles, ser)
@@ -184,7 +184,6 @@ if __name__ == "__main__":
     try:
         # wave_bye(ikSolver, ser)
         # move_to_idle_position(ikSolver, ser)
-        grab(ikSolver, 15.6, 5, 300, ser, 15, 15)
         #time.sleep(10)
         # wave_bye(ikSolver, ser)
         # time.sleep(10)

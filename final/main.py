@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-DUM-E robotic arm system (lenient, multi-object, human-like)
-Takes speech input, transcribes with Groq Whisper, captures image with detection, sends to Groq, loops until task complete.
-If there are multiple things to do, just do the next one that makes sense (don't repeat the same one over and over).
-Be lenient: if it looks good enough, call it done!
+dum-e robotic arm system (lenient, multi-object, human-like)
+takes speech input, transcribes with groq whisper, captures image with detection, sends to groq, loops until task complete.
+if there are multiple things to do, just do the next one that makes sense (don't repeat the same one over and over).
+be lenient: if it looks good enough, call it done!
 """
 
 import sys
@@ -19,23 +19,26 @@ from groq import Groq
 from dotenv import load_dotenv
 from capture_detection import capture_with_detection
 
+# for mouse click detection
+from pynput import mouse
+
 load_dotenv()
 
-# === Set your Flask server URL here ===
-ARM_SERVER_URL = "http://10.37.101.152:5000"
+# === set your flask server url here ===
+arm_server_url = "http://10.37.101.152:5000"
 # ======================================
 
 
 def encode_image(image_path):
-    """Encode image to base64 for Groq API"""
+    """encode image to base64 for groq api"""
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode("utf-8")
 
 
 def parse_groq_response(response_text):
-    """Parse Groq response to extract coordinate dictionary"""
+    """parse groq response to extract coordinate dictionary"""
     try:
-        # Try to find a JSON object in the response
+        # try to find a json object in the response
         lines = response_text.split("\n")
         for line in lines:
             line = line.strip()
@@ -45,38 +48,38 @@ def parse_groq_response(response_text):
                 except json.JSONDecodeError:
                     continue
 
-        # Fallback: try to extract JSON from the whole response
+        # fallback: try to extract json from the whole response
         if "{" in response_text and "}" in response_text:
             start = response_text.find("{")
             end = response_text.rfind("}") + 1
             json_str = response_text[start:end]
             return json.loads(json_str)
 
-        print("No valid JSON found in Groq response")
+        print("no valid json found in groq response")
         return None
 
     except Exception as e:
-        print(f"Error parsing Groq response: {e}")
+        print(f"error parsing groq response: {e}")
         return None
 
 
-def analyze_with_groq(image_path, user_prompt, detections, hand_cm=None):
+def analyze_with_groq(image_path, user_prompt, detections, hand_cm=None, iteration=1):
     """Analyze image with Groq and return coordinate dictionary (lenient, multi-object, human-like)"""
     try:
         base64_image = encode_image(image_path)
-        client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+        client = Groq(api_key=os.environ.get("groq_api_key"))
 
-        # Format detections for context
+        # format detections for context
         if detections:
             detection_strings = [
-                f"Object {obj_num}: ({x:.2f}cm, {y:.2f}cm)"
+                f"object {obj_num}: ({x:.2f}cm, {y:.2f}cm)"
                 for obj_num, x, y in detections
             ]
-            detection_text = "Detected objects (in CM coordinates):\n" + "\n".join(
+            detection_text = "detected objects (in cm coordinates):\n" + "\n".join(
                 detection_strings
             )
         else:
-            detection_text = "No objects detected"
+            detection_text = "no objects detected"
 
         # Add hand coordinate context if available
         if hand_cm is not None:
@@ -86,25 +89,28 @@ def analyze_with_groq(image_path, user_prompt, detections, hand_cm=None):
 
         # Simple prompt
         prompt_text = f"""
-You are DUM-E, a robotic arm. Look at the image and do what the user asks.
+you are dum-e, a robotic arm. look at the image and do what the user asks.
 
 USER REQUEST: {user_prompt}
+ITERATION: {iteration} (keep going until task is complete)
 DETECTED OBJECTS: {detection_text}{hand_text}
 
-COORDINATE SYSTEM: X=0-30cm (left-right), Y=0-30cm (front-back), Z=0 (table level)
+coordinate system: x=0-30cm (left-right), y=0-30cm (front-back), z=0 (table level)
 
-AVAILABLE ACTIONS:
-- "grab": Pick up object at (x,y) and move to (x2,y2) - use phi=270 for top-down
-- "move": Move to (x,y,z) with orientation
-- "move_to_hold": Move to hold position at (x,y)
-- "hold": Hold at position (x,y)
-- "wave_bye": Wave goodbye
-- "shake_yes": Nod yes  
-- "shake_no": Shake no
-- "shake_hand": Handshake
-- "move_to_idle": Go to safe position
+available actions:
+- "grab": pick up object at (x,y) and move to (x2,y2) - use phi=270 for top-down
+- "move": move to (x,y,z) with orientation
+- "move_to_hold": move to hold position at (x,y)
+- "hold": hold at position (x,y)
+- "wave_bye": wave goodbye
+- "shake_yes": nod yes  
+- "shake_no": shake no
+- "shake_hand": handshake
+- "move_to_idle": go to safe position
 
-RESPONSE (JSON only):
+if the task is complete, set "finished": true. if more work is needed, set "finished": false. Be lenient and don't be too strict. For example, if you have to move something, if its approx in the desired area then you are good. No need to be perfect for cords. 
+
+response (json only):
 {{
     "action": "grab",
     "x": 15.0,
@@ -112,11 +118,12 @@ RESPONSE (JSON only):
     "phi": 270,
     "x2": 25.0,
     "y2": 20.0,
-    "task_description": "What I'm doing"
+    "task_description": "what i'm doing",
+    "finished": false
 }}
 """
 
-        # Make the API call
+        # make the api call
         completion = client.chat.completions.create(
             model="meta-llama/llama-4-maverick-17b-128e-instruct",
             messages=[
@@ -136,58 +143,58 @@ RESPONSE (JSON only):
                     ],
                 }
             ],
-            temperature=0.2,  # Low temperature for precise coordinates
+            temperature=0.2,  # low temperature for precise coordinates
             max_completion_tokens=512,
             top_p=0.8,
             stream=False,
         )
 
         response = completion.choices[0].message.content
-        print("DUM-E Analysis:")
+        print("dum-e analysis:")
         print(response)
 
-        # Parse the response
+        # parse the response
         coordinate_dict = parse_groq_response(response)
 
         if coordinate_dict is None:
-            print("Failed to parse coordinate dictionary from Groq response")
+            print("failed to parse coordinate dictionary from groq response")
             return None
 
         return coordinate_dict
 
     except Exception as e:
-        print(f"Error in Groq analysis: {e}")
+        print(f"error in groq analysis: {e}")
         return None
 
 
 def send_to_arm_control(action_dict, arm_server_url=None):
-    """Send action to arm control server"""
+    """send action to arm control server"""
     if arm_server_url is None:
-        arm_server_url = ARM_SERVER_URL
+        arm_server_url = arm_server_url
 
     try:
-        print(f"Sending action: {action_dict.get('action')}")
+        print(f"sending action: {action_dict.get('action')}")
         response = requests.post(
             f"{arm_server_url}/arm_control", json=action_dict, timeout=10
         )
 
         if response.status_code == 200:
-            print("Action completed successfully")
+            print("action completed successfully")
             return True
         else:
-            print(f"Action failed: {response.json()}")
+            print(f"action failed: {response.json()}")
             return False
 
     except requests.exceptions.ConnectionError:
-        print("Cannot connect to arm server")
+        print("cannot connect to arm server")
         return False
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"error: {e}")
         return False
 
 
 class AudioRecorder:
-    """Simple audio recorder with start/stop functionality"""
+    """simple audio recorder with start/stop functionality"""
 
     def __init__(self):
         self.audio = pyaudio.PyAudio()
@@ -197,14 +204,14 @@ class AudioRecorder:
         self.record_thread = None
         self._stop_event = threading.Event()
 
-        # Audio settings
-        self.CHUNK = 1024
-        self.FORMAT = pyaudio.paInt16
-        self.CHANNELS = 1
-        self.RATE = 16000  # Whisper works well with 16kHz
+        # audio settings
+        self.chunk = 1024
+        self.format = pyaudio.paInt16
+        self.channels = 1
+        self.rate = 16000  # whisper works well with 16khz
 
     def start_recording(self):
-        """Start recording audio"""
+        """start recording audio"""
         if self.recording:
             return
 
@@ -213,29 +220,29 @@ class AudioRecorder:
         self._stop_event.clear()
 
         self.stream = self.audio.open(
-            format=self.FORMAT,
-            channels=self.CHANNELS,
-            rate=self.RATE,
+            format=self.format,
+            channels=self.channels,
+            rate=self.rate,
             input=True,
-            frames_per_buffer=self.CHUNK,
+            frames_per_buffer=self.chunk,
         )
 
-        print("🎤 Recording... Press 's' to stop")
+        print("🎤 recording... (toggle right mouse button to stop)")
 
         def record():
             while not self._stop_event.is_set():
                 try:
-                    data = self.stream.read(self.CHUNK, exception_on_overflow=False)
+                    data = self.stream.read(self.chunk, exception_on_overflow=False)
                     self.frames.append(data)
                 except Exception as e:
-                    print(f"Audio read error: {e}")
+                    print(f"audio read error: {e}")
                     break
 
         self.record_thread = threading.Thread(target=record)
         self.record_thread.start()
 
     def stop_recording(self):
-        """Stop recording and return audio data"""
+        """stop recording and return audio data"""
         if not self.recording:
             return None
 
@@ -251,29 +258,29 @@ class AudioRecorder:
                 self.stream.stop_stream()
                 self.stream.close()
             except Exception as e:
-                print(f"Stream close error: {e}")
+                print(f"stream close error: {e}")
             self.stream = None
 
-        print("⏹️  Recording stopped")
+        print("⏹️  recording stopped")
         return b"".join(self.frames)
 
     def save_audio(self, audio_data, filename="temp_audio.wav"):
-        """Save audio data to file"""
+        """save audio data to file"""
         if not audio_data:
             return None
 
         filepath = os.path.join(os.getcwd(), filename)
 
         with wave.open(filepath, "wb") as wf:
-            wf.setnchannels(self.CHANNELS)
-            wf.setsampwidth(self.audio.get_sample_size(self.FORMAT))
-            wf.setframerate(self.RATE)
+            wf.setnchannels(self.channels)
+            wf.setsampwidth(self.audio.get_sample_size(self.format))
+            wf.setframerate(self.rate)
             wf.writeframes(audio_data)
 
         return filepath
 
     def cleanup(self):
-        """Clean up audio resources"""
+        """clean up audio resources"""
         if self.stream:
             try:
                 self.stream.close()
@@ -283,156 +290,196 @@ class AudioRecorder:
 
 
 def transcribe_audio_with_groq(audio_file_path):
-    """Transcribe audio using Groq Whisper Large v3 Turbo"""
+    """transcribe audio using groq whisper large v3 turbo"""
     try:
-        client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+        client = Groq(api_key=os.environ.get("groq_api_key"))
 
-        print("🔄 Transcribing audio...")
+        print("🔄 transcribing audio...")
 
         with open(audio_file_path, "rb") as audio_file:
             transcription = client.audio.transcriptions.create(
                 file=audio_file,
                 model="whisper-large-v3-turbo",
-                language="en",  # You can change this or remove for auto-detection
+                language="en",  # you can change this or remove for auto-detection
             )
 
         transcript = transcription.text.strip()
-        print(f"📝 Transcription: '{transcript}'")
+        print(f"📝 transcription: '{transcript}'")
         return transcript
 
     except Exception as e:
-        print(f"Error transcribing audio: {e}")
+        print(f"error transcribing audio: {e}")
         return None
 
 
 def get_speech_input():
-    """Get speech input from user with keyboard controls"""
+    """get speech input from user with right mouse button toggle, 'q' to quit"""
     recorder = AudioRecorder()
+    print("\n" + "=" * 60)
+    print("🎤 dum-e speech interface")
+    print("=" * 60)
+    print("right mouse button toggles recording, 'q' to quit")
+    print("=" * 60)
 
-    try:
-        print("\n" + "=" * 60)
-        print("🎤 DUM-E Speech Interface")
-        print("=" * 60)
-        print("Press 'r' to start recording, 's' to stop, 'q' to quit")
-        print("=" * 60)
+    result = None
+    recording = False
+    stop_listen = threading.Event()
 
-        while True:
+    def on_click(x, y, button, pressed):
+        nonlocal recording, result
+        # only respond to right mouse button, only on press (toggle)
+        if button == mouse.Button.right and pressed:
+            if not recording:
+                # start recording
+                recorder.start_recording()
+                recording = True
+            else:
+                # stop recording
+                audio_data = recorder.stop_recording()
+                recording = False
+                if audio_data:
+                    audio_file = recorder.save_audio(audio_data)
+                    if audio_file:
+                        transcript = transcribe_audio_with_groq(audio_file)
+                        try:
+                            os.remove(audio_file)
+                        except:
+                            pass
+                        if transcript:
+                            result = transcript
+                            stop_listen.set()
+                        else:
+                            print("❌ transcription failed. try again.")
+                    else:
+                        print("❌ failed to save audio. try again.")
+                else:
+                    print("❌ no audio recorded. try again.")
+
+    def listen_for_q():
+        # listen for 'q' key in a separate thread
+        while not stop_listen.is_set():
             try:
                 key = input().strip().lower()
-
                 if key == "q":
                     if recorder.recording:
                         recorder.stop_recording()
-                    print("👋 Goodbye!")
-                    return None
-                elif key == "r":
-                    if not recorder.recording:
-                        recorder.start_recording()
-                    else:
-                        print("Already recording! Press 's' to stop.")
-                elif key == "s":
-                    if recorder.recording:
-                        audio_data = recorder.stop_recording()
-                        if audio_data:
-                            # Save audio file
-                            audio_file = recorder.save_audio(audio_data)
-                            if audio_file:
-                                # Transcribe
-                                transcript = transcribe_audio_with_groq(audio_file)
-                                if transcript:
-                                    # Clean up audio file
-                                    try:
-                                        os.remove(audio_file)
-                                    except:
-                                        pass
-                                    return transcript
-                                else:
-                                    print("❌ Transcription failed. Try again.")
-                        else:
-                            print("❌ No audio recorded. Try again.")
-                    else:
-                        print("Not recording! Press 'r' to start.")
-                else:
-                    print(
-                        "Unknown command. Use 'r' to record, 's' to stop, 'q' to quit."
-                    )
-
-            except KeyboardInterrupt:
+                    print("👋 goodbye!")
+                    stop_listen.set()
+                    break
+            except (KeyboardInterrupt, EOFError):
                 if recorder.recording:
                     recorder.stop_recording()
-                print("\n👋 Goodbye!")
-                return None
-            except EOFError:
-                if recorder.recording:
-                    recorder.stop_recording()
-                print("\n👋 Goodbye!")
-                return None
+                print("\n👋 goodbye!")
+                stop_listen.set()
+                break
 
+    # start mouse listener
+    mouse_listener = mouse.Listener(on_click=on_click)
+    mouse_listener.start()
+
+    # start thread to listen for 'q'
+    q_thread = threading.Thread(target=listen_for_q, daemon=True)
+    q_thread.start()
+
+    try:
+        # wait until we have a result or quit
+        while not stop_listen.is_set():
+            time.sleep(0.1)
+        return result
     finally:
         recorder.cleanup()
+        mouse_listener.stop()
 
 
 def execute_task(user_prompt, camera_id=0):
-    """Simple task execution: capture image, analyze with LLM, execute arm action"""
+    """task execution with loop until completion: capture image, analyze with llm, execute arm action"""
     print("=" * 60)
-    print("DUM-E Robotic Arm System")
+    print("dum-e robotic arm system")
     print("=" * 60)
-    print(f"User Request: {user_prompt}")
+    print(f"user request: {user_prompt}")
     print("=" * 60)
+
+    iteration = 1
+    max_iterations = 5  # safety limit to prevent infinite loops
 
     try:
-        # Step 1: Capture image
-        print("Capturing image...")
-        image_path, detections, hand_cm = capture_with_detection(camera_id)
-        if image_path is None:
-            print("Failed to capture image")
-            return False
+        while iteration <= max_iterations:
+            print(f"\n--- ITERATION {iteration} ---")
 
-        # Step 2: Analyze with LLM
-        print("Analyzing with LLM...")
-        action_dict = analyze_with_groq(image_path, user_prompt, detections, hand_cm)
-        if action_dict is None:
-            print("Failed to get action from LLM")
-            return False
+            # Step 1: Capture image
+            print("Capturing image...")
+            image_path, detections, hand_cm = capture_with_detection(camera_id)
+            if image_path is None:
+                print("failed to capture image")
+                return False
 
-        # Step 3: Execute arm action
-        print("Executing arm action...")
-        success = send_to_arm_control(action_dict)
-        if success:
-            print("Task completed!")
-        return success
+            # Step 2: Analyze with LLM
+            print("Analyzing with LLM...")
+            action_dict = analyze_with_groq(
+                image_path, user_prompt, detections, hand_cm, iteration
+            )
+            if action_dict is None:
+                print("failed to get action from llm")
+                return False
+
+            # Check if task is finished
+            finished = action_dict.get("finished", False)
+            print(f"Task finished: {finished}")
+
+            # Step 3: Execute arm action
+            print("executing arm action...")
+            success = send_to_arm_control(action_dict, arm_server_url)
+            if not success:
+                print("arm action failed")
+                return False
+
+            # If task is finished, we're done
+            if finished:
+                print(f"✅ task completed after {iteration} iteration(s)!")
+                return True
+
+            # Otherwise, continue to next iteration
+            iteration += 1
+            print(f"Task not complete, continuing to iteration {iteration}...")
+            time.sleep(1)  # brief pause between iterations
+
+        # If we've reached max iterations without finishing
+        print(
+            f"⚠️  reached maximum iterations ({max_iterations}) without completing task"
+        )
+        return False
 
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"error: {e}")
         return False
 
 
 def main():
-    """Main speech interface"""
-    print("🤖 DUM-E Robotic Arm with Speech Control")
-    print("Starting speech interface...")
+    """main speech interface"""
+    print("🤖 dum-e robotic arm with speech control")
+    print("starting speech interface...")
 
     while True:
-        # Get speech input
+        # get speech input
         user_prompt = get_speech_input()
 
-        if user_prompt is None:  # User quit
+        if user_prompt is None:  # user quit
             break
 
         if not user_prompt.strip():
-            print("No speech detected. Try again.")
+            print("no speech detected. try again.")
             continue
 
-        # Execute the task
-        print(f"\n🎯 Executing task: '{user_prompt}'")
+        # execute the task
+        print(f"\n🎯 executing task: '{user_prompt}'")
         success = execute_task(user_prompt)
 
         if success:
-            print("✅ Task completed!")
+            print("✅ task completed!")
         else:
-            print("❌ Task failed!")
+            print("❌ task failed!")
 
-        print("\nPress 'r' to record another command, or 'q' to quit.")
+        print("\nright mouse button to record another command, or 'q' to quit.")
 
 
 if __name__ == "__main__":
