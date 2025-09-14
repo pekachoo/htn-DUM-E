@@ -14,6 +14,7 @@ def test_simple():
     test_cases = [
         {"action": "wave_bye", "task_description": "Wave goodbye"},
         {"action": "shake_yes", "task_description": "Nod yes"},
+        {"action": "move_to_idle", "task_description": "Go to idle"},
         {
             "action": "grab",
             "x": 15.0,
@@ -23,7 +24,12 @@ def test_simple():
             "y2": 20.0,
             "task_description": "Grab and move",
         },
-        {"action": "move_to_idle", "task_description": "Go to idle"},
+        {
+            "action": "move_to_hold",
+            "x": 12.0,
+            "y": 8.0,
+            "task_description": "Move to hold",
+        },
     ]
 
     base_url = "http://10.37.101.152:5000"

@@ -87,6 +87,8 @@ COORDINATE SYSTEM: X=0-30cm (left-right), Y=0-30cm (front-back), Z=0 (table leve
 AVAILABLE ACTIONS:
 - "grab": Pick up object at (x,y) and move to (x2,y2) - use phi=270 for top-down
 - "move": Move to (x,y,z) with orientation
+- "move_to_hold": Move to hold position at (x,y)
+- "hold": Hold at position (x,y)
 - "wave_bye": Wave goodbye
 - "shake_yes": Nod yes  
 - "shake_no": Shake no

@@ -20,7 +20,6 @@ from pi_to_arduino import (
     shake_hand,
     move_to_hold,
     hold,
-    drop_off,
 )
 
 app = Flask(__name__)
@@ -89,6 +88,16 @@ def arm_control():
             roll_angle = float(data.get("roll_angle", 0))
             elbow = data.get("elbow", "up")
             move(ikSolver, x, y, z, phi, ser, claw_open, roll_angle, elbow)
+
+        elif action == "move_to_hold":
+            x = float(data["x"])
+            y = float(data["y"])
+            move_to_hold(ikSolver, ser, x, y)
+
+        elif action == "hold":
+            x = float(data["x"])
+            y = float(data["y"])
+            hold(ikSolver, ser, x, y)
 
         elif action == "wave_bye":
             wave_bye(ikSolver, ser)
