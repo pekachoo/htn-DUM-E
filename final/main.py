@@ -412,7 +412,7 @@ def execute_task(user_prompt, camera_id=0):
 
         # step 3: execute arm action
         print("executing arm action...")
-        success = send_to_arm_control(action_dict)
+        success = send_to_arm_control(action_dict, arm_server_url)
         if success:
             print("task completed!")
         return success
