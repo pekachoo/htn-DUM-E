@@ -177,7 +177,7 @@ def hold(ikSolver, ser, x, y):
     move(ikSolver, x, y, 10, 0, ser, claw_open=0)
 
 if __name__ == "__main__":
-    ser = serial.Serial("/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0", 115200, timeout=0.05, write_timeout=0.05)
+    ser = serial.Serial("/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0", 9600, timeout=0.05, write_timeout=0.05)
     ikSolver = IKSolver(P1=12.0, P2=12.3, P3=8.0)
     time.sleep(3)
 
