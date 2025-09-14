@@ -129,7 +129,7 @@ def move_to_idle_position(ikSolver, ser):
     sendTargets(angles, ser)
     print("a")
 
-    time.sleep(0.1)  # Control update rate
+    time.sleep(2)  # Control update rate
 
 def move(ikSolver, x, y, z, phi, ser, claw_open=1, roll_angle=0, elbow='up'):
     # Calculate angles
@@ -142,14 +142,18 @@ def move(ikSolver, x, y, z, phi, ser, claw_open=1, roll_angle=0, elbow='up'):
     sendTargets(angles, ser)
 
 def wave_bye(ikSolver, ser):
-    ser.write("yaw:90;p1:90;p2:45;p3:90;roll:0;cw:1".encode())
-    time.sleep(1.5)
-    ser.write("yaw:90;p1:90;p2:-45;p3:90;roll:0;cw:1".encode())
-    time.sleep(1.5)
-    ser.write("yaw:90;p1:90;p2:-45;p3:90;roll:0;cw:1".encode())
-    time.sleep(1.5)
-    ser.write("yaw:90;p1:90;p2:-45;p3:90;roll:0;cw:1".encode())
-    time.sleep(1.5)
+    ser.write("yaw:90;p1:90;p2:45;p3:0;roll:90;cw:1".encode())
+    time.sleep(0.5)
+    ser.write("yaw:90;p1:90;p2:-45;p3:0;roll:90;cw:1".encode())
+    time.sleep(0.5)
+    ser.write("yaw:90;p1:90;p2:45;p3:0;roll:90;cw:1".encode())
+    time.sleep(0.5)
+    ser.write("yaw:90;p1:90;p2:-45;p3:0;roll:90;cw:1".encode())
+    time.sleep(0.5)
+    ser.write("yaw:90;p1:90;p2:45;p3:0;roll:90;cw:1".encode())
+    time.sleep(0.5)
+    ser.write("yaw:90;p1:90;p2:-45;p3:0;roll:90;cw:1".encode())
+    time.sleep(0.5)
 
 def shake_yes(ikSolver, ser):
     ser.write("yaw:0;p1:90;p2:0;p3:60;roll:0;cw:0".encode())
@@ -199,7 +203,7 @@ if __name__ == "__main__":
         move_to_idle_position(ikSolver, ser)
         #grab(ikSolver, 10.88, 12.30, 270, ser)
         #time.sleep(10)
-        #wave_bye(ikSolver, ser)
+        wave_bye(ikSolver, ser)
         # time.sleep(10)
         # shake_no(ikSolver, ser)
         # time.sleep(10)
@@ -210,7 +214,7 @@ if __name__ == "__main__":
         # shake_yes(ikSolver, ser)'
 
         #2 -3
-        grab(ikSolver, 6.08, 17.93, 270, ser, 0, 15)
+        # grab(ikSolver, 6.08, 17.93, 270, ser, 0, 15)
 
     except KeyboardInterrupt:
         print("Stopped by user.")
