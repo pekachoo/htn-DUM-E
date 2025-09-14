@@ -203,7 +203,9 @@ if __name__ == "__main__":
         # time.sleep(10)
         # shake_yes(ikSolver, ser)
         # time.sleep(10)
-        shake_hand(ikSolver, ser)
+        # shake_hand(ikSolver, ser)
+        # shake_no(ikSolver, ser)
+        shake_yes(ikSolver, ser)
 
     except KeyboardInterrupt:
         print("Stopped by user.")

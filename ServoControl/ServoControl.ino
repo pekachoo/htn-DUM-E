@@ -16,12 +16,12 @@ const int PITCH3_PIN = 9;
 const int ROLL_PIN = 10;
 const int CLAW_PIN = 11;
 
-float targetYaw = 0;
-float targetPitch1 = 0;
-float targetPitch2 = 0;
-float targetPitch3 = 0;
+float targetYaw = 45.0;
+float targetPitch1 = 120.8;
+float targetPitch2 = -48.9;
+float targetPitch3 = -72;
 float targetRoll = 0;
-float targetClaw = 0;
+float targetClaw = 1.0;
 
 void deserializeAndSetServos(String data) {
   // Expected format: "yaw:30;p1:15;p2:30;p3:45;roll:30;claw:40"
