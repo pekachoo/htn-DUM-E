@@ -97,7 +97,7 @@ def grab(ikSolver, x, y, phi, ser, x2, y2):
     angles = (get_yaw_angle(x, y),) + down_angle + (0, 1)  # open claw
     angles = tuple(int(math.degrees(a)) for a in angles)  # deg
     sendTargets(angles, ser)
-    time.sleep(1)  # wait for arm to reach position
+    time.sleep(1.5)  # wait for arm to reach position
     angles = (get_yaw_angle(x, y),) + down_angle + (0, 0)  # close claw
     angles = tuple(int(math.degrees(a)) for a in angles)  # deg
     sendTargets(angles, ser)
@@ -171,10 +171,10 @@ def shake_hand(ikSolver, ser):
         time.sleep(0.5)
 
 def move_to_hold(ikSolver, ser, x, y):
-    move(ikSolver, x, y, 10, 0, ser, claw_open=1)
+    move(ikSolver, x, y, 8, 0, ser, claw_open=1)
 
 def hold(ikSolver, ser, x, y):
-    move(ikSolver, x, y, 10, 0, ser, claw_open=0)
+    move(ikSolver, x, y, 8, 0, ser, claw_open=0)
 
 if __name__ == "__main__":
     ser = serial.Serial("/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0", 9600, timeout=0.05, write_timeout=0.05)
@@ -184,7 +184,10 @@ if __name__ == "__main__":
     try:
         # wave_bye(ikSolver, ser)
         # move_to_idle_position(ikSolver, ser)
-        grab(ikSolver, 3.6, 17.5, 270, ser, 0, 15)
+        # grab(ikSolver, 10.5, 16.4, 270, ser, 0, 15)
+        move_to_hold(ikSolver, ser,18.19, 3.84)
+        time.sleep(5)
+        hold(ikSolver, ser,18.19, 3.84)
         #time.sleep(10)
         # wave_bye(ikSolver, ser)
         # time.sleep(10)
