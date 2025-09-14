@@ -4,8 +4,31 @@ import argparse
 import os
 from typing import List, Tuple, Optional
 from collections import deque
+import mediapipe as mp
+
+
+mp_hands = mp.solutions.hands
+mp_draw = mp.solutions.drawing_utils
+hands_detector = mp_hands.Hands(static_image_mode=False,
+                                max_num_hands=1,
+                                min_detection_confidence=0.5,
+                                min_tracking_confidence=0.5)
 
 class CompletePipeline:
+    def detect_hand(self, frame: np.ndarray) -> Optional[Tuple[int,int]]:
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = hands_detector.process(rgb)
+        if results.multi_hand_landmarks:
+            hand_landmarks = results.multi_hand_landmarks[0]
+            h, w, _ = frame.shape
+            # Use wrist (landmark 0) as center
+            cx = int(hand_landmarks.landmark[0].x * w)
+            cy = int(hand_landmarks.landmark[0].y * h)
+            # Draw hand landmarks
+            mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+            return cx, cy
+        return None
+
     def __init__(self, src_points=None, dst_points=None):
         self.src_points = src_points or np.array([
             [600, 78], #topleft
@@ -190,6 +213,11 @@ class CompletePipeline:
                     if not cap.isOpened():
                         break
                 continue
+            hand_center = self.detect_hand(frame)
+            if hand_center:
+                hx, hy = hand_center
+                cv2.circle(frame, (hx, hy), 8, (255, 0, 0), -1)
+                print(f"Hand detected at pixel: ({hx}, {hy})")
             consecutive_failures = 0
             frame_count += 1
             warped = cv2.warpPerspective(frame, self.H, (400, 400))
