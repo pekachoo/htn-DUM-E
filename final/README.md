@@ -1,56 +1,60 @@
-# DUM-E Robotic Arm System
+# DUM-E Robotic Arm System (Simplified)
 
-Complete integration of computer vision, object detection, and LLM-based robotic arm control.
+Streamlined integration of computer vision, object detection, and LLM-based robotic arm control.
 
 ## 🚀 Quick Start
 
-### 1. Run the Main System
+### 1. Set up environment
 
 ```bash
 cd final
-python main.py
+export GROQ_API_KEY=your_groq_api_key_here
 ```
 
-### 2. Test the System
+### 2. Run the Main System
 
 ```bash
-python test_integration.py
+python main.py "Pick up the red object and move it to the left"
+```
+
+### 3. Test the System
+
+```bash
+python test_simple.py
 ```
 
 ## 📁 Files Overview
 
-- **`main.py`** - Main integration script that runs the complete pipeline
-- **`capture_detection.py`** - Object detection and image capture system
+- **`main.py`** - Complete system with CLI interface and Groq integration
+- **`capture_detection.py`** - Simple function to capture image with detection
 - **`homography_cv.py`** - Computer vision pipeline with homography transformation
-- **`llm.py`** - LLM integration for task planning and coordinate generation
-- **`test_integration.py`** - Test suite for the complete system
+- **`test_simple.py`** - Simple test script
 
 ## 🔧 How It Works
 
-1. **Initialization**: Sets up camera and detection system
-2. **User Input**: Prompts for natural language task description
-3. **Scene Capture**: Takes image with object detection using homography
-4. **LLM Analysis**: Sends image + task to Groq for coordinate planning
-5. **Action Loop**:
+1. **CLI Input**: Takes task description as command line argument
+2. **Scene Capture**: Captures image with object detection and bounding boxes
+3. **LLM Analysis**: Sends image + task to Groq for coordinate planning
+4. **Action Loop**:
    - Displays planned action and coordinates
-   - Simulates arm movement (10-second sleep)
+   - Simulates arm movement (2-second pause)
    - Captures updated scene
    - Re-analyzes with LLM
    - Repeats until task is complete
 
 ## 🎯 Key Features
 
-- **Persistent Task Context**: Remembers original user prompt throughout execution
+- **Simple CLI**: Just pass task as command line argument
+- **Single Function Capture**: One function call captures, saves, and returns coordinates
+- **Integrated Groq**: All LLM functionality built into main.py
 - **Real-time Updates**: Captures new scenes after each action
-- **Coordinate Display**: Shows pick/place locations and gripper actions
 - **Task Completion Detection**: LLM determines when task is finished
-- **Error Handling**: Robust error handling and cleanup
 
 ## 🔄 Task Execution Flow
 
 ```
-User Input → Scene Capture → LLM Analysis → Action Planning →
-Simulation → New Scene → Re-analysis → Continue until Complete
+CLI Input → Capture → Groq Analysis → Action Planning →
+Simulation → New Capture → Re-analysis → Continue until Complete
 ```
 
 ## 🛠️ Configuration
@@ -74,39 +78,32 @@ Simulation → New Scene → Re-analysis → Continue until Complete
 - Units: millimeters
 - Origin: base of the arm
 
-## 📝 Example Tasks
+## 📝 Example Usage
 
-- "Pick up the red object and move it to the left"
-- "Sort the objects by color"
-- "Wave to the camera"
-- "Pick up the tool and hold it steady"
-- "Move all objects to the right side"
+```bash
+# Basic pick and place
+python main.py "Pick up the red object and move it to the left"
 
-## 🔧 For Real Arm Integration
+# Sorting task
+python main.py "Sort the objects by color - red to left, blue to right"
 
-To connect to actual arm hardware, uncomment these lines in `main.py`:
-
-```python
-# Replace the sleep simulation with:
-success = send_to_arm_control(coordinate_dict)
-if not success:
-    print("❌ Arm control failed, stopping task")
-    return False
+# Simple movement
+python main.py "Move all objects to the right side"
 ```
 
 ## 🧪 Testing
 
-Run the test suite to verify everything works:
+Run the simple test to verify everything works:
 
 ```bash
-python test_integration.py
+python test_simple.py
 ```
 
 This will test:
 
-- System initialization
-- Image capture functionality
-- Complete task execution pipeline
+- Import functionality
+- Image capture with detection
+- System readiness
 
 ## 📋 Requirements
 
