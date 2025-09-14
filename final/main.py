@@ -63,7 +63,7 @@ def parse_groq_response(response_text):
         return None
 
 
-def analyze_with_groq(image_path, user_prompt, detections, hand_cm=None):
+def analyze_with_groq(image_path, user_prompt, detections, hand_cm=None, iteration=1):
     """Analyze image with Groq and return coordinate dictionary (lenient, multi-object, human-like)"""
     try:
         base64_image = encode_image(image_path)
@@ -92,6 +92,7 @@ def analyze_with_groq(image_path, user_prompt, detections, hand_cm=None):
 you are dum-e, a robotic arm. look at the image and do what the user asks.
 
 USER REQUEST: {user_prompt}
+ITERATION: {iteration} (keep going until task is complete)
 DETECTED OBJECTS: {detection_text}{hand_text}
 
 coordinate system: x=0-30cm (left-right), y=0-30cm (front-back), z=0 (table level)
@@ -107,6 +108,8 @@ available actions:
 - "shake_hand": handshake
 - "move_to_idle": go to safe position
 
+if the task is complete, set "finished": true. if more work is needed, set "finished": false. Be lenient and don't be too strict. For example, if you have to move something, if its approx in the desired area then you are good. No need to be perfect for cords. 
+
 response (json only):
 {{
     "action": "grab",
@@ -115,7 +118,8 @@ response (json only):
     "phi": 270,
     "x2": 25.0,
     "y2": 20.0,
-    "task_description": "what i'm doing"
+    "task_description": "what i'm doing",
+    "finished": false
 }}
 """
 
@@ -388,34 +392,62 @@ def get_speech_input():
 
 
 def execute_task(user_prompt, camera_id=0):
-    """simple task execution: capture image, analyze with llm, execute arm action"""
+    """task execution with loop until completion: capture image, analyze with llm, execute arm action"""
     print("=" * 60)
     print("dum-e robotic arm system")
     print("=" * 60)
     print(f"user request: {user_prompt}")
     print("=" * 60)
 
+    iteration = 1
+    max_iterations = 5  # safety limit to prevent infinite loops
+
     try:
-        # Step 1: Capture image
-        print("Capturing image...")
-        image_path, detections, hand_cm = capture_with_detection(camera_id)
-        if image_path is None:
-            print("failed to capture image")
-            return False
+        while iteration <= max_iterations:
+            print(f"\n--- ITERATION {iteration} ---")
 
-        # Step 2: Analyze with LLM
-        print("Analyzing with LLM...")
-        action_dict = analyze_with_groq(image_path, user_prompt, detections, hand_cm)
-        if action_dict is None:
-            print("failed to get action from llm")
-            return False
+            # Step 1: Capture image
+            print("Capturing image...")
+            image_path, detections, hand_cm = capture_with_detection(camera_id)
+            if image_path is None:
+                print("failed to capture image")
+                return False
 
-        # step 3: execute arm action
-        print("executing arm action...")
-        success = send_to_arm_control(action_dict, arm_server_url)
-        if success:
-            print("task completed!")
-        return success
+            # Step 2: Analyze with LLM
+            print("Analyzing with LLM...")
+            action_dict = analyze_with_groq(
+                image_path, user_prompt, detections, hand_cm, iteration
+            )
+            if action_dict is None:
+                print("failed to get action from llm")
+                return False
+
+            # Check if task is finished
+            finished = action_dict.get("finished", False)
+            print(f"Task finished: {finished}")
+
+            # Step 3: Execute arm action
+            print("executing arm action...")
+            success = send_to_arm_control(action_dict, arm_server_url)
+            if not success:
+                print("arm action failed")
+                return False
+
+            # If task is finished, we're done
+            if finished:
+                print(f"✅ task completed after {iteration} iteration(s)!")
+                return True
+
+            # Otherwise, continue to next iteration
+            iteration += 1
+            print(f"Task not complete, continuing to iteration {iteration}...")
+            time.sleep(1)  # brief pause between iterations
+
+        # If we've reached max iterations without finishing
+        print(
+            f"⚠️  reached maximum iterations ({max_iterations}) without completing task"
+        )
+        return False
 
     except Exception as e:
         print(f"error: {e}")
