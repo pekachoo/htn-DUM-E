@@ -71,7 +71,7 @@ def sendTargets(angles, uno):
     yaw, p1, p2, p3, roll, claw = angles
 
     uno_string = f"yaw:{yaw:.2f};p1:{p1:.2f};p2:{p2:.2f};p3:{p3:.2f};roll:{roll:.2f};cw:{claw:.2f}\n"
-    print(uno_string)
+    #print(uno_string)
     uno.write(uno_string.encode())
 
 def get_yaw_angle(x, y):
@@ -147,27 +147,27 @@ def wave_bye(ikSolver, ser):
     move_to_idle_position(ikSolver, ser)
     time.sleep(2)
     for _ in range(3):
-        move(ikSolver, -4, 0, 22, 135 * math.pi / 180, ser, claw_open=1, time_duration=1.5)
-        move(ikSolver, 4, 0, 22, 45 * math.pi / 180, ser, claw_open=1, time_duration=1.5)
+        move(ikSolver, -4, 0, 22, 135 * math.pi / 180, ser, claw_open=1, time_duration=1.5, roll_angle=90)
+        move(ikSolver, 4, 0, 22, 45 * math.pi / 180, ser, claw_open=1, time_duration=1.5, roll_angle=90)
 
-def shake_no(ikSolver):
+def shake_no(ikSolver, ser):
     t=time.time()
-    while(time.time() - t <= 1):
-        move_to_idle_position(ikSolver)
+    while(time.time() - t <= 5):
+        move_to_idle_position(ikSolver, ser)
         time.sleep(0.3)
-        move(ikSolver, 0, 0, 22, 0, ser, claw_open=1, roll_angle=45, time_duration=1)
+        move(ikSolver, 0, 0, 22, 90, ser, claw_open=1, roll_angle=45, time_duration=1)
         time.sleep(0.3)
-        move(ikSolver, 0, 0, 22, 0, ser, claw_open=1, roll_angle=135, time_duration=1)
+        move(ikSolver, 0, 0, 22, 90, ser, claw_open=1, roll_angle=135, time_duration=1)
         time.sleep(0.3)
-        move(ikSolver, 0, 0, 22, 0, ser, claw_open=1, roll_angle=45, time_duration=1)
+        move(ikSolver, 0, 0, 22, 90, ser, claw_open=1, roll_angle=45, time_duration=1)
         time.sleep(0.3)
-        move(ikSolver, 0, 0, 22, 0, ser, claw_open=1, roll_angle=135, time_duration=1)
+        move(ikSolver, 0, 0, 22, 90, ser, claw_open=1, roll_angle=135, time_duration=1)
         time.sleep(0.3)
 
-def shake_yes(ikSolver):
+def shake_yes(ikSolver, ser):
     t=time.time()
-    while(time.time() - t <= 1):
-        move_to_idle_position(ikSolver)
+    while(time.time() - t <= 5):
+        move_to_idle_position(ikSolver, ser)
         time.sleep(0.3)
         move(ikSolver, 0, 0, 22, 90, ser, claw_open=1, time_duration=1)
         time.sleep(0.3)
@@ -192,8 +192,8 @@ if __name__ == "__main__":
 
     try:
         # wave_bye(ikSolver, ser)
-        # move_to_idle_position(ikSolver, ser)
-        grab(ikSolver, 10.88, 12.30, 270, ser)
+        move_to_idle_position(ikSolver, ser)
+        # grab(ikSolver, 10.88, 12.30, 270, ser)
 
     except KeyboardInterrupt:
         print("Stopped by user.")
