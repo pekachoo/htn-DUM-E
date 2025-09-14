@@ -135,38 +135,35 @@ def move(ikSolver, x, y, z, phi, ser, claw_open=1, roll_angle=0, elbow='up'):
     sendTargets(angles, ser)
 
 def wave_bye(ikSolver, ser):
-    """Go to idle position, open claw, wave by oscillating L2 6 times"""
-    move_to_idle_position(ikSolver, ser)
-    time.sleep(1)
-    for _ in range(3):
-        move(ikSolver, -4, 0, 22, 135 * math.pi / 180, ser, claw_open=1, roll_angle=90 / 180 * math.pi)
-        time.sleep(0.3)
-        move(ikSolver, 4, 0, 22, 45 * math.pi / 180, ser, claw_open=1, roll_angle=90 / 180 * math.pi)
-        time.sleep(0.3)
-
-def shake_no(ikSolver, ser):
-    move_to_idle_position(ikSolver, ser)
-    time.sleep(1)
-    move(ikSolver, 0, 0, 20, 270, ser, claw_open=1, roll_angle=145 / 180 * math.pi)
-    time.sleep(1)
-    move(ikSolver, 0, 0, 20, 270, ser, claw_open=1, roll_angle=225 / 180 * math.pi)
-    time.sleep(1)
-    move(ikSolver, 0, 0, 20, 270, ser, claw_open=1, roll_angle=135/ 180 * math.pi)
-    time.sleep(1)
-    move(ikSolver, 0, 0, 20, 270, ser, claw_open=1, roll_angle=225 / 180 * math.pi)
-    time.sleep(1)
+    ser.write("yaw:90;p1:90;p2:45;p3:90;roll:0;cw:1".encode())
+    time.sleep(1.5)
+    ser.write("yaw:90;p1:90;p2:-45;p3:90;roll:0;cw:1".encode())
+    time.sleep(1.5)
+    ser.write("yaw:90;p1:90;p2:-45;p3:90;roll:0;cw:1".encode())
+    time.sleep(1.5)
+    ser.write("yaw:90;p1:90;p2:-45;p3:90;roll:0;cw:1".encode())
+    time.sleep(1.5)
 
 def shake_yes(ikSolver, ser):
-    move_to_idle_position(ikSolver, ser)
-    time.sleep(0.3)
-    move(ikSolver, 0, 0, 22, 90, ser, claw_open=1)
-    time.sleep(0.3)
-    move(ikSolver, 0, 0, 22, 180, ser, claw_open=1)
-    time.sleep(0.3)
-    move(ikSolver, 0, 0, 22, 90, ser, claw_open=1)
-    time.sleep(0.3)
-    move(ikSolver, 0, 0, 22, 180, ser, claw_open=1)
-    time.sleep(0.3)
+    ser.write("yaw:0;p1:90;p2:0;p3:60;roll:0;cw:0".encode())
+    time.sleep(1.5)
+    ser.write("yaw:0;p1:90;p2:0;p3:90;roll:0;cw:0".encode())
+    time.sleep(1.5)
+    ser.write("yaw:0;p1:90;p2:0;p3:60;roll:0;cw:0".encode())
+    time.sleep(1.5)
+    ser.write("yaw:0;p1:90;p2:0;p3:90;roll:0;cw:0".encode())
+    time.sleep(1.5)
+
+def shake_no(ikSolver, ser):
+    ser.write("yaw:0;p1:90;p2:0;p3:90;roll:-45;cw:0".encode())
+    time.sleep(1.5)
+    ser.write("yaw:0;p1:90;p2:0;p3:90;roll:45;cw:0".encode())
+    time.sleep(1.5)
+    ser.write("yaw:0;p1:90;p2:0;p3:90;roll:-45;cw:0".encode())
+    time.sleep(1.5)
+    ser.write("yaw:0;p1:90;p2:0;p3:90;roll:45;cw:0".encode())
+    time.sleep(1.5)
+    
 
 def shake_hand(ikSolver, ser):
     ser.write("yaw:0;p1:45;p2:-45;p3:0;roll:90;cw:0".encode())
@@ -179,13 +176,16 @@ def shake_hand(ikSolver, ser):
     time.sleep(1.5)
     
 
-def hold(ikSolver):
-    move_to_idle_position(ikSolver)
-    move(ikSolver, 4, 4, 22, 0, ser, claw_open=1)
-    time.sleep(5)
-    move(ikSolver, 4, 4, 22, 0, ser, claw_open=0)
-    time.sleep(2)
+def move_to_hold(ikSolver, ser, x, y):
+    move(ikSolver, x, y, 10, 0, ser, claw_open=1)
 
+def hold(ikSolver, ser, x, y):
+    move(ikSolver, x, y, 10, 0, ser, claw_open=0)
+
+def drop_off(ikSolver, ser, x, y, z, phi):
+    move(ikSolver, x, y, z, phi, ser, claw_open=0)
+    time.sleep(1.5)
+    move(ikSolver, x, y, z, phi, ser, claw_open=1)
 
 if __name__ == "__main__":
     ser = serial.Serial("/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0",  9600, timeout=1)
