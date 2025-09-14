@@ -90,7 +90,6 @@ void setServoPositions(int yaw, int p1, int p2, int p3, int roll_pos, int claw) 
   roll.write(roll_pos);
   // delay(5000);
   servoClaw.write(claw);
-  delay(5000);
 }
 
 void setup() {
