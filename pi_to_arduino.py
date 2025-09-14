@@ -183,6 +183,24 @@ def shake_hand(ikSolver):
     while(time.time() - t <= 1):
         move_to_idle_position(ikSolver)
         time.sleep(0.3)
+        move(ikSolver, 0, 15, 10, 0, ser, claw_open=1, roll_angle=90, time_duration=1)
+        time.sleep(2)
+        move(ikSolver, 0, 15, 12, 0, ser, claw_open=1, roll_angle=90, time_duration=1)
+        time.sleep(2)
+        move(ikSolver, 0, 15, 10, 0, ser, claw_open=1, roll_angle=90, time_duration=1)
+        time.sleep(2)
+        move(ikSolver, 0, 15, 12, 0, ser, claw_open=1, roll_angle=90, time_duration=1)
+        time.sleep(2)
+        move(ikSolver, 0, 15, 10, 0, ser, claw_open=1, roll_angle=90, time_duration=1)
+
+def hold(ikSolver):
+    t=time.time()
+    while(time.time() - t <= 1):
+        move_to_idle_position(ikSolver)
+        move(ikSolver, 4, 4, 22, 0, ser, claw_open=1, time_duration=1)
+        time.sleep(5)
+        move(ikSolver, 4, 4, 22, 0, ser, claw_open=0, time_duration=1)
+        time.sleep(2)
 
 
 if __name__ == "__main__":
