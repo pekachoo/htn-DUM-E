@@ -62,17 +62,13 @@ def main():
     controller = HandRobotController()
 
     uno_ports = ['/dev/ttyACM0', '/dev/ttyUSB0', 'COM3']
-    master_ports = ['/dev/ttyACM1', '/dev/ttyUSB1', 'COM4']
-
     uno = open_serial_port(uno_ports)
-    master = open_serial_port(master_ports)
 
     cap = _open_camera(0)
     if cap is None:
         print("Could not open camera.")
         return
 
-    latest_raw = None
     last_send_time = 0.0
     send_interval = 0.05  # 20 Hz
 
@@ -88,52 +84,46 @@ def main():
             results = controller.hands.process(rgb)
 
             if results.multi_hand_landmarks:
-                # Use first detected hand
                 hlms = results.multi_hand_landmarks[0]
                 data = controller.process_hand_data(hlms.landmark)
-                latest_raw = data
 
                 # Servo values
                 yaw_servo = int(data['orientation_servo']['yaw'])
                 p1_servo = int(data['orientation_servo']['pitch1'])
 
-                # Map finger pitches to p3/p4 servos
+                # Map finger pitches to p2/p3 servos
                 p2_fingers = float(data['pitches_deg']['p2_fingers'])  # 0..90
                 p3_tips = float(data['pitches_deg']['p3_tips'])        # 0..90
-                p3_servo = map_deg_0_90_to_servo(p2_fingers)
-                p4_servo = map_deg_0_90_to_servo(p3_tips)
+                p2_servo = map_deg_0_90_to_servo(p2_fingers)
+                p3_servo = map_deg_0_90_to_servo(p3_tips)
 
-                # Optional: include roll influence on p4 (commented)
-                # p4_servo = clamp(int(90 + int(data['roll_int'])))
+                # Roll (use raw int degrees; clamp to [-90,90] then map to 0..180 if needed)
+                roll_int = int(data['orientation_raw_deg']['roll'])
+                roll_int = max(-90, min(90, roll_int))
+
+                # Claw open/close -> cw (0.0 closed, 1.0 open)
+                cw = 1.0 if data['claw']['open'] else 0.0
 
                 now = time.time()
                 if now - last_send_time >= send_interval:
                     last_send_time = now
-
                     if uno is not None:
                         try:
-                            uno_string = f"yaw:{yaw_servo};p1:{p1_servo}\n"
+                            uno_string = (
+                                f"yaw:{yaw_servo:.2f};"
+                                f"p1:{p1_servo:.2f};"
+                                f"p2:{p2_servo:.2f};"
+                                f"p3:{p3_servo:.2f};"
+                                f"roll:{float(roll_int):.2f};"
+                                f"cw:{cw:.2f}\n"
+                            )
+                            print(uno_string.strip())
                             uno.write(uno_string.encode())
-                        except Exception:
-                            pass
-
-                    if master is not None:
-                        try:
-                            master_string = f"p3:{p3_servo};p4:{p4_servo}\n"
-                            master.write(master_string.encode())
-                        except Exception:
-                            pass
-
-                    # Read any reply from UNO for debugging
-                    if uno is not None and uno.in_waiting:
-                        try:
-                            _ = uno.readline().decode(errors='ignore').strip()
                         except Exception:
                             pass
 
             # Minimal key handling without display
             if sys.platform.startswith('darwin'):
-                # On macOS without window, waitKey has no effect; skip
                 pass
             else:
                 if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -155,11 +145,6 @@ def main():
         if uno is not None:
             try:
                 uno.close()
-            except Exception:
-                pass
-        if master is not None:
-            try:
-                master.close()
             except Exception:
                 pass
 
