@@ -18,30 +18,30 @@ FLASK_ARM_ENDPOINT = (
 LOCAL_IMAGE_PATH = "current_image.jpg"  # Local path to save the image
 
 
-def get_image_from_flask():
-    """
-    Get image and additional text from Flask endpoint
-    Returns: (image_saved_path, additional_text)
-    """
-    try:
-        print(f"📡 Requesting image from Flask endpoint")
+# def get_image_from_flask():
+#     """
+#     Get image and additional text from Flask endpoint
+#     Returns: (image_saved_path, additional_text)
+#     """
+#     try:
+#         print(f"📡 Requesting image from Flask endpoint")
 
-        response = requests.get(FLASK_IMAGE_ENDPOINT)
-        response.raise_for_status()
+#         response = requests.get(FLASK_IMAGE_ENDPOINT)
+#         response.raise_for_status()
 
-        data = response.json()
+#         data = response.json()
 
-        # Save the image locally
-        image_data = base64.b64decode(data["image"])
-        with open(LOCAL_IMAGE_PATH, "wb") as f:
-            f.write(image_data)
+#         # Save the image locally
+#         image_data = base64.b64decode(data["image"])
+#         with open(LOCAL_IMAGE_PATH, "wb") as f:
+#             f.write(image_data)
 
-        print(f"✅ Image saved to {LOCAL_IMAGE_PATH}")
-        return LOCAL_IMAGE_PATH, data.get("text", "")
+#         print(f"Image saved to {LOCAL_IMAGE_PATH}")
+#         return LOCAL_IMAGE_PATH, data.get("text", "")
 
-    except Exception as e:
-        print(f"❌ Error getting image from Flask: {e}")
-        raise
+#     except Exception as e:
+#         print(f"Error getting image from Flask: {e}")
+#         raise
 
 
 def encode_image(image_path):
@@ -73,42 +73,66 @@ def parse_groq_response(response_text):
             json_str = response_text[start:end]
             return json.loads(json_str)
 
-        print("❌ No valid JSON found in Groq response")
+        print("No valid JSON found in Groq response")
         return None
 
     except Exception as e:
-        print(f"❌ Error parsing Groq response: {e}")
+        print(f"Error parsing Groq response: {e}")
         return None
 
 
 def send_to_arm_control(coordinate_dict):
     """
-    Send coordinate dictionary to arm control endpoint
+    Mock arm control function - just prints the instructions
     Returns: True if successful, False otherwise
     """
     try:
-        print(f"🤖 Sending coordinates to arm: {coordinate_dict}")
-
-        response = requests.post(
-            FLASK_ARM_ENDPOINT,
-            json=coordinate_dict,
-            headers={"Content-Type": "application/json"},
-        )
-        response.raise_for_status()
-
-        result = response.json()
-        success = result.get("success", False)
-
-        if success:
-            print("✅ Arm action completed successfully")
-        else:
-            print(f"⚠️ Arm action status: {result.get('message', 'Unknown status')}")
-
-        return success
+        print(f"🤖 ARM CONTROL INSTRUCTIONS:")
+        print(f"   Pick up at: {coordinate_dict.get('in_coord', 'N/A')}")
+        print(f"   Place at: {coordinate_dict.get('out_coord', 'N/A')}")
+        print(f"   Direction: {coordinate_dict.get('direction', 'N/A')}")
+        print(f"   Gripper: {coordinate_dict.get('gripper_action', 'N/A')}")
+        print(f"   Yaw: {coordinate_dict.get('yaw', 'N/A')}")
+        print(f"   Pitch: {coordinate_dict.get('pitch', 'N/A')}")
+        print(f"   Roll: {coordinate_dict.get('roll', 'N/A')}")
+        print(f"   Task: {coordinate_dict.get('task_description', 'N/A')}")
+        print(f"   Complete: {coordinate_dict.get('task_complete', False)}")
+        print("✅ Arm control simulation completed successfully")
+        return True
 
     except Exception as e:
-        print(f"❌ Error sending to arm control: {e}")
+        print(f"Error in arm control simulation: {e}")
         return False
+
+
+# def send_to_arm_control(coordinate_dict):
+#     """
+#     Send coordinate dictionary to arm control endpoint
+#     Returns: True if successful, False otherwise
+#     """
+#     try:
+#         print(f"Sending coordinates to arm: {coordinate_dict}")
+
+#         response = requests.post(
+#             FLASK_ARM_ENDPOINT,
+#             json=coordinate_dict,
+#             headers={"Content-Type": "application/json"},
+#         )
+#         response.raise_for_status()
+
+#         result = response.json()
+#         success = result.get("success", False)
+
+#         if success:
+#             print("Arm action completed successfully")
+#         else:
+#             print(f"Arm action status: {result.get('message', 'Unknown status')}")
+
+#         return success
+
+#     except Exception as e:
+#         print(f"Error sending to arm control: {e}")
+#         return False
 
 
 def analyze_with_groq(image_path, user_prompt, additional_text=""):
@@ -150,7 +174,7 @@ GENERAL GUIDELINES:
 - For each step, output a single action (e.g., pick up an object, move to a location, press a key, etc.).
 - After each action, a new image and updated context will be provided. Continue until the task is complete.
 - If the task is already complete or cannot be performed, set "task_complete": true and provide an explanation in the "task_description" or "error" field.
-- If you do not understand the request, respond with: {"task_complete": true, "error": "Cannot understand request"}
+- If you do not understand the request, respond with: {{"task_complete": true, "error": "Cannot understand request"}}
 
 RESPONSE FORMAT (JSON only):
 {{
@@ -212,100 +236,100 @@ REMEMBER:
         coordinate_dict = parse_groq_response(response)
 
         if coordinate_dict is None:
-            print("❌ Failed to parse coordinate dictionary from Groq response")
+            print("Failed to parse coordinate dictionary from Groq response")
             return None
 
         return coordinate_dict
 
     except Exception as e:
-        print(f"❌ Error in Groq analysis: {e}")
+        print(f"Error in Groq analysis: {e}")
         return None
 
 
-def execute_arm_task(user_prompt):
-    """
-    Main function to execute a complete arm task
-    """
-    print("🤖 DUM-E Robotic Arm Task Executor")
-    print("=" * 50)
-    print(f"📝 User Request: {user_prompt}")
-    print("=" * 50)
+# def execute_arm_task(user_prompt):
+#     """
+#     Main function to execute a complete arm task
+#     """
+#     print("DUM-E Robotic Arm Task Executor")
+#     print("=" * 50)
+#     print(f"User Request: {user_prompt}")
+#     print("=" * 50)
 
-    try:
-        # Step 1: Get image from Flask endpoint
-        image_path, additional_text = get_image_from_flask(user_prompt)
+#     try:
+#         # Step 1: Get image from Flask endpoint
+#         image_path, additional_text = get_image_from_flask(user_prompt)
 
-        # Step 2: Analyze with Groq (single call)
-        print("\n🔍 Analyzing image with Groq...")
-        coordinate_dict = analyze_with_groq(image_path, user_prompt, additional_text)
+#         # Step 2: Analyze with Groq (single call)
+#         print("\nAnalyzing image with Groq...")
+#         coordinate_dict = analyze_with_groq(image_path, user_prompt, additional_text)
 
-        if coordinate_dict is None:
-            print("❌ Failed to get coordinates from Groq")
-            return False
+#         if coordinate_dict is None:
+#             print("Failed to get coordinates from Groq")
+#             return False
 
-        # Step 3: Execute arm movements in a loop
-        print("\n🔄 Starting arm execution loop...")
-        task_complete = False
-        iteration = 0
-        max_iterations = 10  # Safety limit
+#         # Step 3: Execute arm movements in a loop
+#         print("\nStarting arm execution loop...")
+#         task_complete = False
+#         iteration = 0
+#         max_iterations = 10  # Safety limit
 
-        while not task_complete and iteration < max_iterations:
-            iteration += 1
-            print(f"\n--- Iteration {iteration} ---")
+#         while not task_complete and iteration < max_iterations:
+#             iteration += 1
+#             print(f"\n--- Iteration {iteration} ---")
 
-            # Send coordinates to arm control
-            success = send_to_arm_control(coordinate_dict)
+#             # Send coordinates to arm control
+#             success = send_to_arm_control(coordinate_dict)
 
-            if not success:
-                print("❌ Arm control failed, stopping task")
-                return False
+#             if not success:
+#                 print("Arm control failed, stopping task")
+#                 return False
 
-            # Check if task is complete
-            task_complete = coordinate_dict.get("task_complete", False)
+#             # Check if task is complete
+#             task_complete = coordinate_dict.get("task_complete", False)
 
-            if task_complete:
-                print("✅ Task completed successfully!")
-                break
+#             if task_complete:
+#                 print("Task completed successfully!")
+#                 break
 
-            # Wait a bit before next iteration
-            time.sleep(1)
+#             # Wait a bit before next iteration
+#             time.sleep(1)
 
-            # Re-analyze if task is not complete (optional - for complex tasks)
-            if not task_complete and iteration < max_iterations:
-                print("🔄 Re-analyzing for next step...")
-                coordinate_dict = analyze_with_groq(
-                    image_path, user_prompt, additional_text
-                )
-                if coordinate_dict is None:
-                    print("❌ Failed to re-analyze, stopping task")
-                    return False
+#             # Re-analyze if task is not complete (optional - for complex tasks)
+#             if not task_complete and iteration < max_iterations:
+#                 print("Re-analyzing for next step...")
+#                 coordinate_dict = analyze_with_groq(
+#                     image_path, user_prompt, additional_text
+#                 )
+#                 if coordinate_dict is None:
+#                     print("Failed to re-analyze, stopping task")
+#                     return False
 
-        if iteration >= max_iterations:
-            print("⚠️ Reached maximum iterations, stopping task")
+#         if iteration >= max_iterations:
+#             print("Reached maximum iterations, stopping task")
 
-        return task_complete
+#         return task_complete
 
-    except Exception as e:
-        print(f"❌ Error executing arm task: {e}")
-        return False
+#     except Exception as e:
+#         print(f"Error executing arm task: {e}")
+#         return False
 
 
 # Main execution
-if __name__ == "__main__":
-    # Example usage
-    test_prompts = [
-        "Pick up the red apple and move it to the left corner",
-        "Sort the objects by color - red to left, blue to right",
-        "Wave to the camera",
-        "Pick up the tool and hold it steady",
-    ]
+# if __name__ == "__main__":
+#     # Example usage
+#     test_prompts = [
+#         "Pick up the red apple and move it to the left corner",
+#         "Sort the objects by color - red to left, blue to right",
+#         "Wave to the camera",
+#         "Pick up the tool and hold it steady",
+#     ]
 
-    # Use the first test prompt or get user input
-    user_prompt = test_prompts[0]  # Change this or make it interactive
+#     # Use the first test prompt or get user input
+#     user_prompt = test_prompts[0]  # Change this or make it interactive
 
-    success = execute_arm_task(user_prompt)
+#     success = execute_arm_task(user_prompt)
 
-    if success:
-        print("\n🎉 Task completed successfully!")
-    else:
-        print("\n💥 Task failed or was incomplete")
+#     if success:
+#         print("\nTask completed successfully!")
+#     else:
+#         print("\nTask failed or was incomplete")

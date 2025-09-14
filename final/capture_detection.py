@@ -167,11 +167,11 @@ def prompt_user_and_capture(camera_id: int = 0) -> Dict[str, Any]:
         result = capture_system.capture_and_save()
 
         if result["success"]:
-            print(f"\n✅ Capture successful!")
-            print(f"📸 Image saved: {result['image_path']}")
+            print(f"\nCapture successful!")
+            print(f"Image saved: {result['image_path']}")
             print(f"📊 {result['formatted_text']}")
         else:
-            print(f"\n❌ Capture failed: {result['error']}")
+            print(f"\nCapture failed: {result['error']}")
 
         return result
 
@@ -185,7 +185,7 @@ def prompt_user_and_capture(camera_id: int = 0) -> Dict[str, Any]:
             "formatted_text": "Operation cancelled",
         }
     except Exception as e:
-        print(f"\n❌ Unexpected error: {e}")
+        print(f"\nUnexpected error: {e}")
         return {
             "success": False,
             "error": f"Unexpected error: {e}",
@@ -231,16 +231,16 @@ def main():
         result = capture_system.capture_and_save(args.output)
 
         if result["success"]:
-            print(f"\n✅ Capture successful!")
-            print(f"📸 Image saved: {result['image_path']}")
+            print(f"\nCapture successful!")
+            print(f"Image saved: {result['image_path']}")
             print(f"📊 {result['formatted_text']}")
         else:
-            print(f"\n❌ Capture failed: {result['error']}")
+            print(f"\nCapture failed: {result['error']}")
 
     except KeyboardInterrupt:
         print("\n\nOperation cancelled by user")
     except Exception as e:
-        print(f"\n❌ Unexpected error: {e}")
+        print(f"\nUnexpected error: {e}")
     finally:
         # Clean up
         capture_system.cleanup()
