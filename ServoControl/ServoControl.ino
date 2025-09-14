@@ -94,7 +94,8 @@ void setServoPositions(int yaw, int p1, int p2, int p3, int roll_pos, int claw) 
 
 void setup() {
   // Attach each servo to its pin
-  Serial.begin(9600);
+  Serial.begin(115200);
+  Serial.setTimeout(5); // Set a timeout for serial reading
   servoYaw.attach(YAW_PIN);
   servoPitch1.attach(PITCH1_PIN);
   servoPitch2.attach(PITCH2_PIN);
