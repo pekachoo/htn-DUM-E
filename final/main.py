@@ -109,7 +109,7 @@ COORDINATE SYSTEM (IMPORTANT!):
 - All coordinates must be in centimeters (cm), not millimeters.
 
 AVAILABLE ACTIONS:
-- "grab": Pick up an object at coordinates (requires x, y, phi)
+- "grab": Pick up an object and move it to drop-off location (requires x, y, phi, x2, y2)
 - "move": Move to coordinates with orientation (requires x, y, z, phi, claw_open, roll_angle)
 - "move_to_idle": Move to safe idle position (no coordinates needed)
 - "wave_bye": Wave goodbye gesture (no coordinates needed)
@@ -126,7 +126,9 @@ RESPONSE FORMAT (JSON as plain text only, no markdown, no code block, no explana
     "x": float,                      // X coordinate in cm (required for most actions)
     "y": float,                      // Y coordinate in cm (required for most actions)
     "z": float,                      // Z coordinate in cm (optional, defaults to 0)
-    "phi": float,                    // Angle in degrees (optional, defaults to 0)
+    "phi": float,                    // Claw orientation in degrees (270=top-down, 0=side approach)
+    "x2": float,                     // Drop-off X coordinate in cm (required for grab action)
+    "y2": float,                     // Drop-off Y coordinate in cm (required for grab action)
     "claw_open": 1,                  // 1 for open, 0 for closed (optional, defaults to 1)
     "roll_angle": float,             // Roll angle in degrees (optional, defaults to 0)
     "elbow": "up",                   // "up" or "down" (optional, defaults to "up")
@@ -143,6 +145,8 @@ REMEMBER:
 - Z should always be 0.
 - You don't need to be accurate—close enough is good enough!
 - Choose the appropriate action based on what needs to be done (grab for picking up, move for moving, gestures for communication, etc.)
+- For grab action: Use phi=270 for top-down approach (default), phi=0 for side approach
+- For grab action: Always specify x2, y2 for where to drop the object after picking it up
 """
 
         # Make the API call
@@ -226,6 +230,13 @@ def send_to_arm_control(action_dict, arm_server_url=None):
         if action in ["grab", "move", "drop_off"]:
             if "phi" in action_dict:
                 request_data["phi"] = float(action_dict["phi"])
+
+        # Special handling for grab action - needs drop-off coordinates
+        if action == "grab":
+            if "x2" in action_dict:
+                request_data["x2"] = float(action_dict["x2"])
+            if "y2" in action_dict:
+                request_data["y2"] = float(action_dict["y2"])
 
         if action == "move":
             if "claw_open" in action_dict:
