@@ -310,8 +310,6 @@ class CompletePipeline:
             hand_cm = self.detect_hand(frame)  # now returns (x_cm, y_cm)
             if hand_cm is not None:
                 x_cm, y_cm = hand_cm
-                x_cm=x_cm-10
-                y_cm=y_cm-5
                 print(f"Hand (cm): ({x_cm:.2f}, {y_cm:.2f})")
 
                 # draw on the warped panel at the corresponding pixel

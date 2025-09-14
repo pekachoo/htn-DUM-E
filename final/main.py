@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 dum-e robotic arm system (lenient, multi-object, human-like)
-takes speech input, transcribes with groq whisper, captures image with detection, sends to groq, loops until task complete.
+takes speech input, transcribes with groq whisper, captures image with detection, sends to groq, does one action at a time.
 if there are multiple things to do, just do the next one that makes sense (don't repeat the same one over and over).
 be lenient: if it looks good enough, call it done!
 """
@@ -18,9 +18,6 @@ import threading
 from groq import Groq
 from dotenv import load_dotenv
 from capture_detection import capture_with_detection
-
-# for mouse click detection
-from pynput import mouse
 
 load_dotenv()
 
@@ -63,7 +60,7 @@ def parse_groq_response(response_text):
         return None
 
 
-def analyze_with_groq(image_path, user_prompt, detections, hand_cm=None, iteration=1):
+def analyze_with_groq(image_path, user_prompt, detections, hand_cm=None):
     """Analyze image with Groq and return coordinate dictionary (lenient, multi-object, human-like)"""
     try:
         base64_image = encode_image(image_path)
@@ -92,24 +89,26 @@ def analyze_with_groq(image_path, user_prompt, detections, hand_cm=None, iterati
 you are dum-e, a robotic arm. look at the image and do what the user asks.
 
 USER REQUEST: {user_prompt}
-ITERATION: {iteration} (keep going until task is complete)
 DETECTED OBJECTS: {detection_text}{hand_text}
 
 coordinate system: x=0-30cm (left-right), y=0-30cm (front-back), z=0 (table level)
 
 available actions:
-- "grab": pick up object at (x,y) and move to (x2,y2) - use phi=270 for top-down
+- "grab": pick up object at (x,y) and move to (x2,y2) - use phi=270 for top-down. 
+  grab --> for moving objects
 - "move": move to (x,y,z) with orientation
 - "move_to_hold": move to hold position at (x,y)
+  move to hold --> for asking it to hold things for us in place. it just helps to clarify to the DUM-E arm what we want out of it
 - "wave_bye": wave goodbye
 - "shake_yes": nod yes  
 - "shake_no": shake no
 - "shake_hand": handshake
+  handshaek --> for handshaekes
 - "move_to_idle": go to safe position
 
-if the task is complete, set "finished": true. if more work is needed, set "finished": false. Be lenient and don't be too strict. For example, if you have to move something, if its approx in the desired area then you are good. No need to be perfect for cords. 
+Do just one action at a time. If there are multiple things to do, just do the next one that makes sense (don't repeat the same one over and over). Be lenient and don't be too strict. For example, if you have to move something, if its approx in the desired area then you are good. No need to be perfect for cords.
 
-response (json only):
+response (json only): MAKE SURE ITS VALID PYTHON JSON AND CAN PARSE. NOTHING ELSE. 
 {{
     "action": "grab",
     "x": 15.0,
@@ -117,8 +116,7 @@ response (json only):
     "phi": 270,
     "x2": 25.0,
     "y2": 20.0,
-    "task_description": "what i'm doing",
-    "finished": false
+    "task_description": "what i'm doing"
 }}
 """
 
@@ -226,7 +224,7 @@ class AudioRecorder:
             frames_per_buffer=self.chunk,
         )
 
-        print("🎤 recording... (toggle right mouse button to stop)")
+        print("🎤 recording... (press 's' to stop)")
 
         def record():
             while not self._stop_event.is_set():
@@ -312,141 +310,95 @@ def transcribe_audio_with_groq(audio_file_path):
 
 
 def get_speech_input():
-    """get speech input from user with right mouse button toggle, 'q' to quit"""
+    """get speech input from user with 'r' to record, 's' to stop, 'q' to quit"""
     recorder = AudioRecorder()
     print("\n" + "=" * 60)
     print("🎤 dum-e speech interface")
     print("=" * 60)
-    print("right mouse button toggles recording, 'q' to quit")
+    print("Press 'r' to start recording, 's' to stop, 'q' to quit")
     print("=" * 60)
 
     result = None
     recording = False
-    stop_listen = threading.Event()
-
-    def on_click(x, y, button, pressed):
-        nonlocal recording, result
-        # only respond to right mouse button, only on press (toggle)
-        if button == mouse.Button.right and pressed:
-            if not recording:
-                # start recording
-                recorder.start_recording()
-                recording = True
-            else:
-                # stop recording
-                audio_data = recorder.stop_recording()
-                recording = False
-                if audio_data:
-                    audio_file = recorder.save_audio(audio_data)
-                    if audio_file:
-                        transcript = transcribe_audio_with_groq(audio_file)
-                        try:
-                            os.remove(audio_file)
-                        except:
-                            pass
-                        if transcript:
-                            result = transcript
-                            stop_listen.set()
-                        else:
-                            print("❌ transcription failed. try again.")
-                    else:
-                        print("❌ failed to save audio. try again.")
-                else:
-                    print("❌ no audio recorded. try again.")
-
-    def listen_for_q():
-        # listen for 'q' key in a separate thread
-        while not stop_listen.is_set():
-            try:
-                key = input().strip().lower()
-                if key == "q":
-                    if recorder.recording:
-                        recorder.stop_recording()
-                    print("👋 goodbye!")
-                    stop_listen.set()
-                    break
-            except (KeyboardInterrupt, EOFError):
-                if recorder.recording:
-                    recorder.stop_recording()
-                print("\n👋 goodbye!")
-                stop_listen.set()
-                break
-
-    # start mouse listener
-    mouse_listener = mouse.Listener(on_click=on_click)
-    mouse_listener.start()
-
-    # start thread to listen for 'q'
-    q_thread = threading.Thread(target=listen_for_q, daemon=True)
-    q_thread.start()
 
     try:
-        # wait until we have a result or quit
-        while not stop_listen.is_set():
-            time.sleep(0.1)
+        while True:
+            key = input(">> ").strip().lower()
+            if key == "q":
+                if recorder.recording:
+                    recorder.stop_recording()
+                print("👋 goodbye!")
+                return None
+            elif key == "r":
+                if not recording:
+                    recorder.start_recording()
+                    recording = True
+                else:
+                    print("Already recording. Press 's' to stop.")
+            elif key == "s":
+                if recording:
+                    audio_data = recorder.stop_recording()
+                    recording = False
+                    if audio_data:
+                        audio_file = recorder.save_audio(audio_data)
+                        if audio_file:
+                            transcript = transcribe_audio_with_groq(audio_file)
+                            try:
+                                os.remove(audio_file)
+                            except:
+                                pass
+                            if transcript:
+                                result = transcript
+                                break
+                            else:
+                                print("❌ transcription failed. try again.")
+                        else:
+                            print("❌ failed to save audio. try again.")
+                    else:
+                        print("❌ no audio recorded. try again.")
+                else:
+                    print("Not recording. Press 'r' to start.")
+            else:
+                print("Press 'r' to record, 's' to stop, or 'q' to quit.")
         return result
     finally:
         recorder.cleanup()
-        mouse_listener.stop()
 
 
 def execute_task(user_prompt, camera_id=0):
-    """task execution with loop until completion: capture image, analyze with llm, execute arm action"""
+    """task execution: capture image, analyze with llm, execute arm action (one step only)"""
     print("=" * 60)
     print("dum-e robotic arm system")
     print("=" * 60)
     print(f"user request: {user_prompt}")
     print("=" * 60)
 
-    iteration = 1
-    max_iterations = 5  # safety limit to prevent infinite loops
-
     try:
-        while iteration <= max_iterations:
-            print(f"\n--- ITERATION {iteration} ---")
+        # Step 1: Capture image
+        print("Capturing image...")
+        image_path, detections, hand_cm = capture_with_detection(camera_id)
+        if image_path is None:
+            print("failed to capture image")
+            return False
 
-            # Step 1: Capture image
-            print("Capturing image...")
-            image_path, detections, hand_cm = capture_with_detection(camera_id)
-            if image_path is None:
-                print("failed to capture image")
-                return False
-
-            # Step 2: Analyze with LLM
-            print("Analyzing with LLM...")
-            action_dict = analyze_with_groq(
-                image_path, user_prompt, detections, hand_cm, iteration
-            )
-            if action_dict is None:
-                print("failed to get action from llm")
-                return False
-
-            # Check if task is finished
-            finished = action_dict.get("finished", False)
-            print(f"Task finished: {finished}")
-
-            # Step 3: Execute arm action
-            print("executing arm action...")
-            success = send_to_arm_control(action_dict, arm_server_url)
-            if not success:
-                print("arm action failed")
-                return False
-
-            # If task is finished, we're done
-            if finished:
-                print(f"✅ task completed after {iteration} iteration(s)!")
-                return True
-
-            # Otherwise, continue to next iteration
-            iteration += 1
-            print(f"Task not complete, continuing to iteration {iteration}...")
-            time.sleep(1)  # brief pause between iterations
-
-        # If we've reached max iterations without finishing
-        print(
-            f"⚠️  reached maximum iterations ({max_iterations}) without completing task"
+        # Step 2: Analyze with LLM
+        print("Analyzing with LLM...")
+        action_dict = analyze_with_groq(
+            image_path, user_prompt, detections, hand_cm
         )
-        return False
+        if action_dict is None:
+            print("failed to get action from llm")
+            return False
+
+        # Step 3: Execute arm action
+        print("executing arm action...")
+        success = send_to_arm_control(action_dict, arm_server_url)
+        if not success:
+            print("arm action failed")
+            return False
+
+        print(f"✅ action executed: {action_dict.get('action', 'unknown')}")
+        return True
 
     except Exception as e:
         print(f"error: {e}")
@@ -474,11 +426,11 @@ def main():
         success = execute_task(user_prompt)
 
         if success:
-            print("✅ task completed!")
+            print("✅ action completed!")
         else:
-            print("❌ task failed!")
+            print("❌ action failed!")
 
-        print("\nright mouse button to record another command, or 'q' to quit.")
+        print("\nPress 'r' to record another command, or 'q' to quit.")
 
 
 if __name__ == "__main__":
