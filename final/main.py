@@ -72,26 +72,37 @@ def analyze_with_groq(image_path, user_prompt, detections):
         else:
             detection_text = "No objects detected"
 
-        # Comprehensive prompt for coordinate-based actions
+        # Highly generous prompt for coordinate-based actions
         prompt_text = f"""
-You are DUM-E, a robotic arm assistant. Analyze the image and determine the coordinates needed to complete the user's request.
+You are DUM-E, a robotic arm assistant. Your job is to analyze the image and context, and figure out the next coordinates and actions needed to complete the user's request.
 
-USER REQUEST: {user_prompt}
-DETECTION CONTEXT: {detection_text}
+USER REQUEST (text): {user_prompt}
+DETECTION CONTEXT (text): {detection_text}
 
 INSTRUCTIONS:
-You are DUM-E, a highly capable robotic arm assistant. The computer vision (CV) pipeline has already detected and localized all objects in the scene, and you are provided with their bounding boxes and coordinates. You do not need to do any image analysis or object detection yourself—just use the information given.
-
-Your job is to decide what the arm should do next, one action at a time, until the task is complete. After each action, a new image and updated context will be provided.
+- You have access to both the image and the provided coordinates/context. Use both! If the user wants to move something to the "top right" and you see in the image that it's even roughly in the top right, that's good enough—be extremely generous and lenient in deciding if the task is complete.
+- If you are on a later step and can infer what happened before (even if you didn't see the first request), use your best judgment based on the current image and context.
+- The computer vision system has already detected and localized all objects for you. You do NOT need to do any image analysis or object detection yourself, but you should use the image to help you decide if the task is done or if the object is in the right place.
+- Decide what the arm should do next, one action at a time, until the task is complete. After each action, a new image and updated context will be provided.
+- IF THE OBJECT IS EVEN CLOSE TO WHERE IT SHOULD BE, OR IF IT LOOKS "GOOD ENOUGH" OR "ABOUT" RIGHT, THEN THE TASK IS COMPLETE! Err on the side of marking the task as complete if there is any reasonable doubt. Do not require precision—if it looks like the goal is basically achieved, set "task_complete": true and explain in "task_description".
+- If the user request is ambiguous or already satisfied, or if the objects are already in a reasonable position, mark the task as complete.
 
 IMPORTANT:
-- Only return valid JSON in the specified format below. Do not include any explanation, reasoning, or extra text.
-- Do not output any step-by-step thinking or commentary.
+- Only return valid JSON as plain text in the format below. Do NOT include any explanation, reasoning, or extra text.
+- Do NOT output any step-by-step thinking or commentary.
 - If the task is already complete or cannot be performed, set "task_complete": true and provide an explanation in the "task_description" or "error" field.
 - If you do not understand the request, respond with: {{"task_complete": true, "error": "Cannot understand request"}}
-- BE FLEXIBLE WITH PRECISION: You don't need to be super precise with coordinates. Close enough is good enough for most tasks.
+- BE EXTREMELY FLEXIBLE: If the object is even approximately where it should be, that's good enough. If it's good enough, the task is done! Err on the side of completion.
 
-RESPONSE FORMAT (JSON only):
+COORDINATE SYSTEM (IMPORTANT!):
+- X: left/right (0 = far left, 30 = far right), in centimeters (cm)
+- Y: forward/backward (0 = closest to arm base, 30 = farthest away), in centimeters (cm)
+- Z: always 0 (table surface level)
+- Workspace grid: (0,0) is bottom left, (30,30) is top right.
+- DO NOT use values below 2 or above 28 for X or Y (avoid edge cases).
+- All coordinates must be in centimeters (cm), not millimeters.
+
+RESPONSE FORMAT (JSON as plain text only, no markdown, no code block, no explanation):
 {{
     "in_coord": [x, y, 0],           // Where to pick up or start the action (in cm, Z=0, avoid edge values)
     "out_coord": [x, y, 0],          // Where to place, move, or end the action (in cm, Z=0, avoid edge values)
@@ -101,26 +112,16 @@ RESPONSE FORMAT (JSON only):
     "roll": float,                   // Roll angle for the end effector (approximate is fine)
     "gripper_action": "open" or "close", // Whether to open or close the gripper
     "task_description": "Brief description of what the arm will do",
-    "task_complete": false           // Set to true only when the entire task is finished or cannot be done
+    "task_complete": false           // Set to true only when the entire task is finished or cannot be done. Be extremely generous and lenient in deciding completion.
 }}
 
-COORDINATE SYSTEM (IMPORTANT!):
-- X: left/right (0 = far left, 30 = far right), in centimeters (cm)
-- Y: forward/backward (0 = closest to arm base, 30 = farthest away), in centimeters (cm)
-- Z: just use 0 (table surface level)
-- The workspace grid is (0,0) at the bottom left and (30,30) at the top right.
-- DO NOT use values below 2 or above 28 for X or Y (avoid edge cases).
-- Z should always be 0 - don't worry about height.
-- All coordinates should be in centimeters (cm), not millimeters.
-- BE FLEXIBLE: You don't need to be super accurate - close enough is good enough!
-
 REMEMBER:
-- Only output valid JSON in the specified format.
+- Only output valid JSON as plain text in the specified format.
 - Do not include any explanation, reasoning, or extra text.
-- Be flexible with precision - close enough is good enough.
+- Be extremely generous: If the object is even roughly where it should be, that's good enough. IF IT'S GOOD ENOUGH, THE TASK IS COMPLETE!
 - All coordinates must be in centimeters (cm), and avoid using values near 0 or 30 for X and Y (stay between 2 and 28).
-- Z should always be 0 - don't worry about height.
-- You don't need to be super accurate - close enough is good enough!
+- Z should always be 0.
+- You don't need to be accurate—close enough is good enough!
 """
 
         # Make the API call
@@ -232,13 +233,17 @@ def execute_task(user_prompt, camera_id=0):
 
             # Check if task is complete
             task_complete = coordinate_dict.get("task_complete", False)
+            print(f" Task complete status: {task_complete}")
+            print(
+                f" Task description: {coordinate_dict.get('task_description', 'No description')}"
+            )
 
             if task_complete:
                 print("✅ Task completed successfully!")
                 break
 
             # Wait a bit before next iteration
-            time.sleep(2)
+            time.sleep(20)
 
             # Re-analyze if task is not complete
             if not task_complete and iteration < max_iterations:
