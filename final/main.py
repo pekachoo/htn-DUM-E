@@ -72,7 +72,7 @@ def analyze_with_groq(image_path, user_prompt, detections):
         else:
             detection_text = "No objects detected"
 
-        # Highly generous prompt for coordinate-based actions
+        # Moderately flexible prompt for coordinate-based actions
         prompt_text = f"""
 You are DUM-E, a robotic arm assistant. Your job is to analyze the image and context, and figure out the next coordinates and actions needed to complete the user's request.
 
@@ -80,11 +80,13 @@ USER REQUEST (text): {user_prompt}
 DETECTION CONTEXT (text): {detection_text}
 
 INSTRUCTIONS:
-- You have access to both the image and the provided coordinates/context. Use both! If the user wants to move something to the "top right" and you see in the image that it's even roughly in the top right, that's good enough—be extremely generous and lenient in deciding if the task is complete.
+- You have access to both the image and the provided coordinates/context. Use both!
+- When the user gives instructions like "move to the top right" or similar, interpret these in a human way: "top right" means the top right quadrant or general area, not just the very corner. Don't be overly strict about exact positions—think about how a person would describe it, and if the object is in the general area, that's usually good enough.
+- However, do not be too lenient: if the object is clearly not in the intended area, the task is not complete. Use reasonable judgment.
 - If you are on a later step and can infer what happened before (even if you didn't see the first request), use your best judgment based on the current image and context.
 - The computer vision system has already detected and localized all objects for you. You do NOT need to do any image analysis or object detection yourself, but you should use the image to help you decide if the task is done or if the object is in the right place.
 - Decide what the arm should do next, one action at a time, until the task is complete. After each action, a new image and updated context will be provided.
-- IF THE OBJECT IS EVEN CLOSE TO WHERE IT SHOULD BE, OR IF IT LOOKS "GOOD ENOUGH" OR "ABOUT" RIGHT, THEN THE TASK IS COMPLETE! Err on the side of marking the task as complete if there is any reasonable doubt. Do not require precision—if it looks like the goal is basically achieved, set "task_complete": true and explain in "task_description".
+- If the object is in the general area or quadrant described by the user (for example, "top right" means the upper right quarter of the workspace), and it looks "good enough" or "about right", then the task is complete. Do not require precision—if it looks like the goal is basically achieved, set "task_complete": true and explain in "task_description".
 - If the user request is ambiguous or already satisfied, or if the objects are already in a reasonable position, mark the task as complete.
 
 IMPORTANT:
@@ -92,7 +94,7 @@ IMPORTANT:
 - Do NOT output any step-by-step thinking or commentary.
 - If the task is already complete or cannot be performed, set "task_complete": true and provide an explanation in the "task_description" or "error" field.
 - If you do not understand the request, respond with: {{"task_complete": true, "error": "Cannot understand request"}}
-- BE EXTREMELY FLEXIBLE: If the object is even approximately where it should be, that's good enough. If it's good enough, the task is done! Err on the side of completion.
+- Be flexible and human-like in your interpretation, but not careless: if the object is in the general area the user described, that's good enough. If it's clearly not, the task is not complete.
 
 COORDINATE SYSTEM (IMPORTANT!):
 - X: left/right (0 = far left, 30 = far right), in centimeters (cm)
@@ -112,13 +114,13 @@ RESPONSE FORMAT (JSON as plain text only, no markdown, no code block, no explana
     "roll": float,                   // Roll angle for the end effector (approximate is fine)
     "gripper_action": "open" or "close", // Whether to open or close the gripper
     "task_description": "Brief description of what the arm will do",
-    "task_complete": false           // Set to true only when the entire task is finished or cannot be done. Be extremely generous and lenient in deciding completion.
+    "task_complete": false           // Set to true only when the entire task is finished or cannot be done. Use reasonable, human-like judgment.
 }}
 
 REMEMBER:
 - Only output valid JSON as plain text in the specified format.
 - Do not include any explanation, reasoning, or extra text.
-- Be extremely generous: If the object is even roughly where it should be, that's good enough. IF IT'S GOOD ENOUGH, THE TASK IS COMPLETE!
+- Be flexible and human-like: If the object is in the general area/quadrant the user described, that's good enough. If it's clearly not, the task is not complete.
 - All coordinates must be in centimeters (cm), and avoid using values near 0 or 30 for X and Y (stay between 2 and 28).
 - Z should always be 0.
 - You don't need to be accurate—close enough is good enough!
@@ -151,7 +153,7 @@ REMEMBER:
         )
 
         response = completion.choices[0].message.content
-        print("🧠 DUM-E Analysis:")
+        print("DUM-E Analysis:")
         print(response)
 
         # Parse the response
@@ -171,7 +173,7 @@ REMEMBER:
 def send_to_arm_control(coordinate_dict):
     """Mock arm control function - just prints the instructions"""
     try:
-        print(f"🤖 ARM CONTROL INSTRUCTIONS:")
+        print(f"ARM CONTROL INSTRUCTIONS:")
         print(f"   Pick up at: {coordinate_dict.get('in_coord', 'N/A')}")
         print(f"   Place at: {coordinate_dict.get('out_coord', 'N/A')}")
         print(f"   Direction: {coordinate_dict.get('direction', 'N/A')}")
@@ -181,7 +183,7 @@ def send_to_arm_control(coordinate_dict):
         print(f"   Roll: {coordinate_dict.get('roll', 'N/A')}")
         print(f"   Task: {coordinate_dict.get('task_description', 'N/A')}")
         print(f"   Complete: {coordinate_dict.get('task_complete', False)}")
-        print("✅ Arm control simulation completed successfully")
+        print("Arm control simulation completed successfully")
         return True
 
     except Exception as e:
@@ -199,23 +201,23 @@ def execute_task(user_prompt, camera_id=0):
 
     try:
         # Step 1: Capture image with detection
-        print("\n📸 Capturing image with object detection...")
+        print("\nCapturing image with object detection...")
         image_path, detections = capture_with_detection(camera_id)
 
         if image_path is None:
-            print("❌ Failed to capture image")
+            print("Failed to capture image")
             return False
 
         # Step 2: Analyze with Groq
-        print("\n🧠 Analyzing scene with Groq...")
+        print("\nAnalyzing scene with Groq...")
         coordinate_dict = analyze_with_groq(image_path, user_prompt, detections)
 
         if coordinate_dict is None:
-            print("❌ Failed to get coordinates from Groq")
+            print("Failed to get coordinates from Groq")
             return False
 
         # Step 3: Execute arm movements in a loop
-        print("\n🤖 Starting arm execution loop...")
+        print("\nStarting arm execution loop...")
         task_complete = False
         iteration = 0
         max_iterations = 10  # Safety limit
@@ -228,7 +230,7 @@ def execute_task(user_prompt, camera_id=0):
             success = send_to_arm_control(coordinate_dict)
 
             if not success:
-                print("❌ Arm control failed, stopping task")
+                print("Arm control failed, stopping task")
                 return False
 
             # Check if task is complete
@@ -239,7 +241,7 @@ def execute_task(user_prompt, camera_id=0):
             )
 
             if task_complete:
-                print("✅ Task completed successfully!")
+                print("Task completed successfully!")
                 break
 
             # Wait a bit before next iteration
@@ -247,27 +249,27 @@ def execute_task(user_prompt, camera_id=0):
 
             # Re-analyze if task is not complete
             if not task_complete and iteration < max_iterations:
-                print("📸 Re-capturing scene for next step...")
+                print("Re-capturing scene for next step...")
                 image_path, detections = capture_with_detection(camera_id)
 
                 if image_path is None:
-                    print("❌ Failed to re-capture, stopping task")
+                    print("Failed to re-capture, stopping task")
                     return False
 
-                print("🧠 Re-analyzing for next step...")
+                print("Re-analyzing for next step...")
                 coordinate_dict = analyze_with_groq(image_path, user_prompt, detections)
 
                 if coordinate_dict is None:
-                    print("❌ Failed to re-analyze, stopping task")
+                    print("Failed to re-analyze, stopping task")
                     return False
 
         if iteration >= max_iterations:
-            print("⚠️ Reached maximum iterations, stopping task")
+            print("Reached maximum iterations, stopping task")
 
         return task_complete
 
     except Exception as e:
-        print(f"❌ Error executing task: {e}")
+        print(f"Error executing task: {e}")
         return False
 
 
@@ -284,16 +286,16 @@ def main():
 
     # Check for Groq API key
     if not os.environ.get("GROQ_API_KEY"):
-        print("❌ Error: GROQ_API_KEY environment variable not set")
+        print("Error: GROQ_API_KEY environment variable not set")
         print("Please set your Groq API key: export GROQ_API_KEY=your_key_here")
         sys.exit(1)
 
     success = execute_task(user_prompt)
 
     if success:
-        print("\n🎉 Task completed successfully!")
+        print("\nTask completed successfully!")
     else:
-        print("\n💥 Task failed or was incomplete")
+        print("\nTask failed or was incomplete")
 
 
 if __name__ == "__main__":

@@ -8,10 +8,10 @@ from collections import deque
 class CompletePipeline:
     def __init__(self, src_points=None, dst_points=None):
         self.src_points = src_points or np.array([
-            [600, 78], #topleft
-            [1421, 80], #top right
-            [1622, 823], # bottom right
-            [314, 821], # bottomleft
+            [558, 107], #topleft
+            [1409, 125], #top right
+            [1637, 943], # bottom right
+            [239, 808], # bottomleft
         ], dtype=np.float32)
         
         self.dst_points = dst_points or np.array([
