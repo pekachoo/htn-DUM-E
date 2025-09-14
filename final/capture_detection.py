@@ -1,15 +1,15 @@
 import cv2
 import numpy as np
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict, Any
 from homography_cv import CompletePipeline
 
 
 def capture_with_detection(
     camera_id: int = 0, output_path: str = "current_task_image.jpg"
-) -> Tuple[Optional[str], List[Tuple[int, float, float]]]:
+) -> Tuple[Optional[str], List[Tuple[int, float, float]], Optional[Tuple[float, float]]]:
     """
     Simple function to capture image with detection, save it with bounding boxes, and return coordinates
-    Returns: (image_path, detections_list) or (None, []) if failed
+    Returns: (image_path, detections_list, hand_cm) or (None, [], None) if failed
     """
     # Initialize pipeline and camera
     pipeline = CompletePipeline()
@@ -32,13 +32,13 @@ def capture_with_detection(
 
         if camera is None or not camera.isOpened():
             print("Failed to initialize camera")
-            return None, []
+            return None, [], None
 
         # Capture frame
         ret, frame = camera.read()
         if not ret:
             print("Failed to capture frame")
-            return None, []
+            return None, [], None
 
         # Apply homography transformation
         warped = cv2.warpPerspective(frame, pipeline.H, (400, 400))
@@ -63,6 +63,16 @@ def capture_with_detection(
             cy_cm = ((400 - cy) * 30.0) / 400.0
             detections.append((i + 1, cx_cm, cy_cm))  # These are in cm, with y flipped
 
+        # Hand detection (in original frame), then map to cm
+        hand_info = pipeline.get_hand_in_cm(frame)
+        hand_cm: Optional[Tuple[float, float]] = None
+        if hand_info is not None:
+            (hx, hy), (wx, wy), (x_cm, y_cm) = hand_info
+            hand_cm = (x_cm, y_cm)
+            # Draw marker on warped image where the hand maps
+            cv2.circle(warped_with_boxes, (int(wx), int(wy)), 8, (255, 0, 0), -1)
+            cv2.putText(warped_with_boxes, f"HAND ({x_cm:.1f},{y_cm:.1f})cm", (int(wx)+10, int(wy)-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,0,0), 2)
+
         # Save the image with bounding boxes
         cv2.imwrite(output_path, warped_with_boxes)
         print(f"Image saved: {output_path}")
@@ -76,11 +86,17 @@ def capture_with_detection(
         else:
             print("Detections (cm): []")
 
-        return output_path, detections
+        # Print hand coordinates if present
+        if hand_cm is not None:
+            print(f"Hand (cm): ({hand_cm[0]:.2f}, {hand_cm[1]:.2f})")
+        else:
+            print("Hand (cm): None")
+
+        return output_path, detections, hand_cm
 
     except Exception as e:
         print(f"Error in capture: {e}")
-        return None, []
+        return None, [], None
     finally:
         if camera is not None:
             camera.release()
