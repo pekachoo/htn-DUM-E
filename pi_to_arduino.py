@@ -47,7 +47,7 @@ class IKSolver:
 def IK_to_servo_angles(angles):
     yaw, p1, p2, p3, roll, claw = angles
     # yaw
-    yaw = -0.6556 * yaw + 105.0
+    yaw = -0.711 * yaw + 113.0
     # p1
         ## restrain p1 angle
     if p1 > -90 and p1 < -35:
@@ -203,8 +203,8 @@ if __name__ == "__main__":
 
     try:
         # wave_bye(ikSolver, ser)
-        move_to_idle_position(ikSolver, ser)
-        # grab(ikSolver, 15, 15, 270, ser)
+        # move_to_idle_position(ikSolver, ser)
+        grab(ikSolver, 10.88, 12.30, 270, ser)
 
     except KeyboardInterrupt:
         print("Stopped by user.")
