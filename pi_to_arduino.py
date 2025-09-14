@@ -83,7 +83,7 @@ def projection(x, y, z):
     return math.sqrt(x**2 + y**2), z
     
 
-def grab(ikSolver, x, y, phi, ser):
+def grab(ikSolver, x, y, phi, ser, x2, y2):
     idle_angle = ikSolver.solve(math.sqrt(x**2 + y**2), 10, 300 * math.pi / 180, elbow='up')
     angles = (get_yaw_angle(x, y),) + idle_angle + (0, 1)  # open claw
     angles = tuple(int(math.degrees(a)) for a in angles)  # deg
@@ -106,6 +106,11 @@ def grab(ikSolver, x, y, phi, ser):
     angles = tuple(int(math.degrees(a)) for a in angles)  # deg
     sendTargets(angles, ser)
     time.sleep(0.3)  # wait for arm to reach position
+
+    #DROP OFF
+    move(ikSolver, x2, y2, 0, phi, ser, claw_open=0)
+    time.sleep(1.5)
+    move(ikSolver, x2, y2, 0, phi, ser, claw_open=1)
 
 def move_to_idle_position(ikSolver, ser):
     # SETTING TARGETS
@@ -181,11 +186,6 @@ def move_to_hold(ikSolver, ser, x, y):
 
 def hold(ikSolver, ser, x, y):
     move(ikSolver, x, y, 10, 0, ser, claw_open=0)
-
-def drop_off(ikSolver, ser, x, y, z, phi):
-    move(ikSolver, x, y, z, phi, ser, claw_open=0)
-    time.sleep(1.5)
-    move(ikSolver, x, y, z, phi, ser, claw_open=1)
 
 if __name__ == "__main__":
     ser = serial.Serial("/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0",  9600, timeout=1)
