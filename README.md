@@ -1,4 +1,6 @@
 # DUM-E
 
 inspiration:
-[![watch the video](https://img.youtube.com/vi/_dsG4h1FjIo/0.jpg)](https://www.youtube.com/watch?v=_dsG4h1FjIo)
+<br>
+
+[![Watch the video](https://static.wikia.nocookie.net/marvelcinematicuniverse/images/6/65/Dum-E_1.png)](https://www.youtube.com/watch?v=_dsG4h1FjIo)
